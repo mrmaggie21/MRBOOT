@@ -22,3 +22,6 @@ build-context*.tar.gz
 deploy-portainer.js
 Dockerfile
 .dockerignore
+
+# Lock files (gerados automaticamente)
+package-lock.json
