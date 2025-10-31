@@ -29,6 +29,11 @@ services:
         max-file: "3"
     environment:
       - NODE_ENV=production
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - API_TOKEN=${API_TOKEN}
+      - API_BASE_URL=${API_BASE_URL:-https://completa.workbuscas.com/api}
+      - WEBSHARE_API_KEY=${WEBSHARE_API_KEY}
+      - WEBSHARE_API_URL=${WEBSHARE_API_URL:-https://proxy.webshare.io/api/v2/proxy/list}
 
 networks:
   bot-network:
