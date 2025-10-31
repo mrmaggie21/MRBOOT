@@ -241,10 +241,15 @@ async function criarStackComGit(jwtToken) {
         // Tentar criar a stack
         let response;
         try {
-            console.log(`   Fazendo request para: ${PORTAINER_URL}/api/stacks/create/${endpointPath}/repository`);
+            // Para Swarm, não passar endpointId na query string, só no body
+            const url = isSwarm
+                ? `${PORTAINER_URL}/api/stacks/create/${endpointPath}/repository`
+                : `${PORTAINER_URL}/api/stacks/create/${endpointPath}/repository?endpointId=${PORTAINER_ENDPOINT_ID}`;
+            
+            console.log(`   Fazendo request para: ${url}`);
             
             response = await axios.post(
-                `${PORTAINER_URL}/api/stacks/create/${endpointPath}/repository?endpointId=${PORTAINER_ENDPOINT_ID}`,
+                url,
                 payload,
                 {
                     headers: {
@@ -252,7 +257,7 @@ async function criarStackComGit(jwtToken) {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     },
-                    timeout: 180000, // 3 minutos para build
+                    timeout: 180000, // 3 minutos
                     maxContentLength: Infinity,
                     maxBodyLength: Infinity
                 }
