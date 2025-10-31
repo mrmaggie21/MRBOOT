@@ -4,11 +4,13 @@ services:
   telegram-bot:
     image: node:18-alpine
     working_dir: /app
-    command: sh -c "if [ ! -d /app/node_modules ]; then npm install --only=production; fi && node bot.js"
+    command: sh -c "npm install --only=production && node bot.js"
     deploy:
       replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 5s
+        max_attempts: 3
     networks:
       - bot-network
     logging:
@@ -18,7 +20,3 @@ services:
         max-file: "3"
     environment:
       - NODE_ENV=production
-
-networks:
-  bot-network:
-    driver: overlay
