@@ -305,9 +305,10 @@ function validarCPF(cpf) {
 }
 
 // Função para consultar CPF na API com retry e proxy
-async function consultarCPF(cpf, maxRetries = 5) {
+async function consultarCPF(cpf, maxRetries = 5, consultaId = '') {
     const cpfFormatado = formatarCPF(cpf);
     const url = `${API_BASE_URL}?token=${API_TOKEN}&modulo=cpf&consulta=${cpfFormatado}`;
+    const logPrefix = consultaId ? `[${consultaId}]` : '';
     
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
@@ -315,7 +316,7 @@ async function consultarCPF(cpf, maxRetries = 5) {
             const timeout = attempt === 0 ? 90000 : 60000;
             const axiosInstance = createAxiosInstance(true, timeout);
             
-            console.log(`   Tentativa ${attempt + 1}/${maxRetries} com timeout de ${timeout/1000}s...`);
+            console.log(`${logPrefix}   Tentativa ${attempt + 1}/${maxRetries} com timeout de ${timeout/1000}s...`);
             const startTime = Date.now();
             
             const response = await axiosInstance.get(url);
@@ -351,6 +352,9 @@ async function consultarCPF(cpf, maxRetries = 5) {
 
 // Função para processar consulta de CPF
 async function processarConsulta(chatId, cpf) {
+    // ID único para esta consulta (para rastreamento em múltiplas consultas simultâneas)
+    const consultaId = `${chatId}-${Date.now()}`;
+    
     if (!validarCPF(cpf)) {
         bot.sendMessage(chatId, 
             '❌ CPF inválido!\n\n' +
@@ -364,20 +368,31 @@ async function processarConsulta(chatId, cpf) {
     }
 
     try {
+        console.log(`[${consultaId}] 📥 Nova consulta recebida - CPF: ${cpf.substring(0, 3)}***`);
+        
         // Enviar mensagem de "processando"
         const processingMsg = await bot.sendMessage(chatId, '⏳ Consultando CPF... Por favor, aguarde.', {
             parse_mode: 'Markdown'
         });
 
         // Consultar CPF
-        const dados = await consultarCPF(cpf);
+        console.log(`[${consultaId}] 🔍 Iniciando consulta na API...`);
+        const dados = await consultarCPF(cpf, 5, consultaId);
 
         // Remover mensagem de processamento
         bot.deleteMessage(chatId, processingMsg.message_id);
 
+        if (!dados || !dados.data) {
+            console.log(`[${consultaId}] ⚠️ Nenhum dado retornado da API`);
+            bot.sendMessage(chatId, '❌ Não foi possível obter dados para este CPF. Tente novamente.');
+            return;
+        }
+
         // Enviar resultado (agora retorna array de mensagens)
+        console.log(`[${consultaId}] ✅ Dados recebidos, formatando resposta...`);
         const mensagens = formatarResposta(dados);
         
+        console.log(`[${consultaId}] 📤 Enviando ${mensagens.length} mensagem(ns) ao usuário...`);
         // Enviar todas as mensagens
         for (let i = 0; i < mensagens.length; i++) {
             // Verificar tamanho antes de enviar (segurança extra)
@@ -402,8 +417,9 @@ async function processarConsulta(chatId, cpf) {
                 await new Promise(resolve => setTimeout(resolve, 200));
             }
         }
+        console.log(`[${consultaId}] ✅ Consulta finalizada com sucesso`);
     } catch (error) {
-        console.error('Erro ao processar consulta:', error);
+        console.error(`[${consultaId}] ❌ Erro ao processar consulta:`, error.message);
         bot.sendMessage(chatId, '❌ Erro ao processar sua consulta. Tente novamente mais tarde.');
     }
 }
