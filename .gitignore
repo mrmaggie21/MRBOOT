@@ -25,3 +25,9 @@ Dockerfile
 
 # Lock files (gerados automaticamente)
 package-lock.json
+
+# Arquivos de teste temporários
+test-*.js
+*-test.js
+resposta-*.json
+*.test.js
