@@ -17,4 +17,3 @@ Thumbs.db
 # Arquivos temporários de build/deploy
 build-context*.tar.gz
 *.tar.gz
-
