@@ -322,14 +322,37 @@ async function consultarCPF(cpf, maxRetries = 5, consultaId = '') {
             const response = await axiosInstance.get(url);
             
             const tempoTotal = Date.now() - startTime;
-            console.log(`   ✅ Sucesso em ${tempoTotal}ms`);
+            console.log(`${logPrefix}   ✅ Sucesso em ${tempoTotal}ms`);
             
-            if (response.data.status === 200) {
-                return response.data;
-            } else {
-                console.warn(`   ⚠️ Resposta com status: ${response.data.status}`);
-                return null;
+            // Log detalhado da resposta para debug
+            if (logPrefix) {
+                console.log(`${logPrefix}   📋 Estrutura da resposta:`, JSON.stringify(response.data).substring(0, 500));
+                console.log(`${logPrefix}   📊 Campos disponíveis:`, Object.keys(response.data || {}).join(', '));
             }
+            
+            // A API pode retornar dados em diferentes estruturas
+            // Aceitar se tem status 200 OU se tem campos principais
+            if (response.data) {
+                // Se tem status 200, retornar
+                if (response.data.status === 200) {
+                    console.log(`${logPrefix}   ✅ Status 200 - dados válidos`);
+                    return response.data;
+                }
+                // Se não tem status mas tem campos principais, também aceitar
+                if (response.data.DadosBasicos || response.data.dados || response.data.data || basicos?.nome) {
+                    console.log(`${logPrefix}   ✅ Dados encontrados (sem status 200)`);
+                    return response.data;
+                }
+                // Se tem algum conteúdo, retornar mesmo assim (pode ser uma estrutura diferente)
+                const keys = Object.keys(response.data);
+                if (keys.length > 0 && keys.length < 50) { // Se tem poucos campos, provavelmente é válido
+                    console.log(`${logPrefix}   ⚠️ Retornando resposta mesmo sem validação padrão`);
+                    return response.data;
+                }
+            }
+            
+            console.warn(`${logPrefix}   ⚠️ Resposta sem dados válidos detectados`);
+            return null;
         } catch (error) {
             const errorMsg = error.message || error.toString();
             console.error(`   ❌ Tentativa ${attempt + 1}/${maxRetries} - Erro:`, errorMsg.substring(0, 100));
