@@ -17,3 +17,8 @@ Thumbs.db
 # Arquivos temporários de build/deploy
 build-context*.tar.gz
 *.tar.gz
+
+# Arquivos de deploy local (não necessários no Git)
+deploy-portainer.js
+Dockerfile
+.dockerignore
