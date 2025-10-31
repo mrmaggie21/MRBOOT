@@ -126,14 +126,23 @@ async function criarStackComGit(jwtToken) {
             console.log(`   ℹ️  Repositório público (sem autenticação)`);
         }
 
+        // Verificar tipo do endpoint PRIMEIRO para determinar o arquivo correto
+        const endpointType = await verificarTipoEndpoint(jwtToken);
+        const isSwarm = endpointType === 2;
+        
+        // Determinar qual arquivo compose usar
+        // Para Swarm, usar docker-compose.yml (já está compatível com Swarm)
+        let composeFilePath = COMPOSE_FILE_PATH;
+        console.log(`   📝 Usando ${composeFilePath} para Docker ${isSwarm ? 'Swarm' : 'Standalone'}`);
+
         const payload = {
             Name: PORTAINER_STACK_NAME,
             RepositoryURL: GIT_REPOSITORY_URL,
             RepositoryReference: GIT_REFERENCE,
-            ComposeFilePath: COMPOSE_FILE_PATH,
+            ComposeFilePath: composeFilePath,
             RepositoryAuthentication: false,
             EndpointID: parseInt(PORTAINER_ENDPOINT_ID),
-            SwarmID: '' // Obrigatório para stacks standalone
+            SwarmID: '' // Será preenchido se for Swarm
         };
 
         // Se tem credenciais Git, adicionar autenticação
@@ -145,10 +154,6 @@ async function criarStackComGit(jwtToken) {
 
         console.log('   Payload completo:', JSON.stringify(payload, null, 2));
 
-        // Verificar tipo do endpoint para usar o endpoint correto
-        const endpointType = await verificarTipoEndpoint(jwtToken);
-        const isSwarm = endpointType === 2;
-        
         // Escolher endpoint correto
         const endpointPath = isSwarm ? 'swarm' : 'standalone';
         console.log(`   Tipo do endpoint: ${isSwarm ? 'Docker Swarm' : 'Docker Standalone'}`);
@@ -168,15 +173,6 @@ async function criarStackComGit(jwtToken) {
                 );
                 payload.SwarmID = swarmResponse.data.ID || '';
                 console.log(`   ✅ SwarmID obtido: ${payload.SwarmID.substring(0, 12)}...`);
-                
-                // Para Swarm, usar docker-compose-swarm.yml se existir
-                if (fs.existsSync('docker-compose-swarm.yml')) {
-                    console.log('   📝 Usando docker-compose-swarm.yml para Swarm');
-                    payload.ComposeFilePath = 'docker-compose-swarm.yml';
-                } else {
-                    console.warn('   ⚠️  docker-compose-swarm.yml não encontrado, usando docker-compose.yml');
-                    console.warn('   ⚠️  Swarm não suporta build:, use imagem pré-construída');
-                }
             } catch (swarmError) {
                 console.warn('   ⚠️ Não foi possível obter SwarmID, usando string vazia');
                 payload.SwarmID = '';
