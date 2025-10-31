@@ -114,17 +114,56 @@ async function buscarStack(jwtToken) {
 async function buildImageFromGit(jwtToken) {
     try {
         console.log('🔨 Fazendo build da imagem usando Dockerfile do Git...');
+        console.log(`   Repository: ${GIT_REPOSITORY_URL}`);
+        console.log(`   Reference: ${GIT_REFERENCE}`);
+        console.log(`   Dockerfile: Dockerfile`);
+        console.log(`   Image tag: telegram-cpf-bot:latest`);
         
-        // Portainer não tem endpoint direto para build via Git via API
-        // Mas o Portainer fará o build automaticamente quando criar a stack
-        // Se o docker-compose.yml tiver build:, o Portainer tentará fazer build
-        // Para Swarm, precisamos fazer build primeiro e usar a imagem
+        // Portainer API: POST /api/docker/images/build
+        // Build usando Git repository remoto
+        let buildUrl = `${GIT_REPOSITORY_URL}#${GIT_REFERENCE}`;
         
-        console.log('   ℹ️  O Portainer fará o build automaticamente ao criar a stack com Git repository');
-        console.log('   ℹ️  Para Swarm, o build será feito internamente pelo Portainer');
+        // Montar URL com credenciais se necessário
+        if (GIT_USERNAME && GIT_PASSWORD) {
+            const repoUrl = GIT_REPOSITORY_URL.replace(/^https?:\/\//, '');
+            buildUrl = `https://${GIT_USERNAME}:${GIT_PASSWORD}@${repoUrl}#${GIT_REFERENCE}`;
+        }
+        
+        const buildParams = new URLSearchParams({
+            endpointId: PORTAINER_ENDPOINT_ID,
+            remote: buildUrl,
+            t: 'telegram-cpf-bot:latest',
+            dockerfile: 'Dockerfile'
+        });
+        
+        console.log('   Fazendo build via API do Portainer...');
+        console.log(`   Endpoint: ${PORTAINER_URL}/api/docker/images/build`);
+        
+        const response = await axios.post(
+            `${PORTAINER_URL}/api/docker/images/build?${buildParams.toString()}`,
+            {},
+            {
+                headers: {
+                    'Authorization': `Bearer ${jwtToken}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 300000, // 5 minutos para build
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            }
+        );
+        
+        console.log('✅ Build da imagem iniciado com sucesso!');
+        console.log('   Imagem: telegram-cpf-bot:latest');
+        console.log('   ⚠️  Aguardando build completar (pode levar alguns minutos)...');
         return true;
     } catch (error) {
         console.warn('   ⚠️ Não foi possível fazer build via API:', error.message);
+        if (error.response) {
+            console.warn('   Status:', error.response.status);
+            console.warn('   Data:', JSON.stringify(error.response.data));
+        }
+        console.log('   ℹ️  Continuando... o Portainer pode fazer build ao criar a stack');
         return false;
     }
 }
