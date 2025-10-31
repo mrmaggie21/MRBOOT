@@ -316,53 +316,27 @@ async function consultarCPF(cpf, maxRetries = 5, consultaId = '') {
             const timeout = attempt === 0 ? 90000 : 60000;
             const axiosInstance = createAxiosInstance(true, timeout);
             
-            console.log(`${logPrefix}   Tentativa ${attempt + 1}/${maxRetries} com timeout de ${timeout/1000}s...`);
             const startTime = Date.now();
-            
             const response = await axiosInstance.get(url);
-            
             const tempoTotal = Date.now() - startTime;
-            console.log(`${logPrefix}   ✅ Sucesso em ${tempoTotal}ms`);
             
-            // Log detalhado da resposta para debug
-            if (logPrefix) {
-                console.log(`${logPrefix}   📋 Estrutura da resposta:`, JSON.stringify(response.data).substring(0, 500));
-                console.log(`${logPrefix}   📊 Campos disponíveis:`, Object.keys(response.data || {}).join(', '));
-                
-                // Log específico para RG
-                if (response.data.registroGeral !== undefined) {
-                    console.log(`${logPrefix}   🪪 registroGeral:`, JSON.stringify(response.data.registroGeral));
-                }
-                if (response.data.DadosBasicos) {
-                    const rgFields = ['rg', 'identidade', 'numeroIdentidade'];
-                    const foundFields = rgFields.filter(f => response.data.DadosBasicos[f]);
-                    if (foundFields.length > 0) {
-                        console.log(`${logPrefix}   🪪 RG em DadosBasicos:`, foundFields.map(f => `${f}=${response.data.DadosBasicos[f]}`).join(', '));
-                    }
-                }
-                if (response.data.listaDocumentos) {
-                    console.log(`${logPrefix}   🪪 listaDocumentos:`, JSON.stringify(response.data.listaDocumentos).substring(0, 300));
-                }
-            }
+            // Logs removidos - apenas erros críticos serão logados
             
             // A API pode retornar dados em diferentes estruturas
             // Aceitar se tem status 200 OU se tem campos principais
             if (response.data) {
                 // Se tem status 404 (CPF não encontrado), não retornar dados
                 if (response.data.status === 404 || response.data.statusMsg === 'Not found') {
-                    console.warn(`${logPrefix}   ⚠️ CPF não encontrado (404)`);
                     return null;
                 }
                 
                 // Se tem status 200, retornar
                 if (response.data.status === 200) {
-                    console.log(`${logPrefix}   ✅ Status 200 - dados válidos`);
                     return response.data;
                 }
                 
                 // Se não tem status mas tem campos principais, também aceitar
                 if (response.data.DadosBasicos || response.data.dados || response.data.data) {
-                    console.log(`${logPrefix}   ✅ Dados encontrados (sem status 200)`);
                     return response.data;
                 }
                 
@@ -371,25 +345,17 @@ async function consultarCPF(cpf, maxRetries = 5, consultaId = '') {
                 // Ignorar respostas que só têm status, statusMsg, reason (são erros)
                 const camposValidos = keys.filter(k => !['status', 'statusMsg', 'reason', 'contate'].includes(k));
                 if (camposValidos.length > 0) {
-                    console.log(`${logPrefix}   ⚠️ Retornando resposta com campos: ${camposValidos.join(', ')}`);
                     return response.data;
                 }
             }
             
-            console.warn(`${logPrefix}   ⚠️ Resposta sem dados válidos detectados`);
             return null;
         } catch (error) {
-            const errorMsg = error.message || error.toString();
-            console.error(`   ❌ Tentativa ${attempt + 1}/${maxRetries} - Erro:`, errorMsg.substring(0, 100));
-            
             if (attempt < maxRetries - 1) {
                 // Tentar próximo proxy com delay maior
                 const delay = (attempt + 1) * 2000; // 2s, 4s, 6s...
-                console.log(`   ⏳ Aguardando ${delay/1000}s antes de tentar próximo proxy...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
-                console.log('   🔄 Tentando próximo proxy...');
             } else {
-                console.error('   ❌ Todas as tentativas falharam');
                 return null;
             }
         }
@@ -399,10 +365,7 @@ async function consultarCPF(cpf, maxRetries = 5, consultaId = '') {
 }
 
 // Função para processar consulta de CPF
-async function processarConsulta(chatId, cpf) {
-    // ID único para esta consulta (para rastreamento em múltiplas consultas simultâneas)
-    const consultaId = `${chatId}-${Date.now()}`;
-    
+async function processarConsulta(chatId, cpf, username = null, firstName = null) {
     if (!validarCPF(cpf)) {
         bot.sendMessage(chatId, 
             '❌ CPF inválido!\n\n' +
@@ -416,33 +379,29 @@ async function processarConsulta(chatId, cpf) {
     }
 
     try {
-        console.log(`[${consultaId}] 📥 Nova consulta recebida - CPF: ${cpf.substring(0, 3)}***`);
+        // Log simples: apenas usuário
+        const userInfo = username || firstName || `ID: ${chatId}`;
+        console.log(`📥 Consulta - Usuário: ${userInfo} | CPF: ${cpf.substring(0, 3)}***`);
         
         // Enviar mensagem de "processando"
         const processingMsg = await bot.sendMessage(chatId, '⏳ Consultando CPF... Por favor, aguarde.', {
             parse_mode: 'Markdown'
         });
 
-        // Consultar CPF
-        console.log(`[${consultaId}] 🔍 Iniciando consulta na API...`);
-        const dados = await consultarCPF(cpf, 5, consultaId);
+        // Consultar CPF (sem logs detalhados)
+        const dados = await consultarCPF(cpf, 5, '');
 
         // Remover mensagem de processamento
         bot.deleteMessage(chatId, processingMsg.message_id);
 
         // Validar se há dados válidos (verificar campos principais ou se tem dados dentro)
         if (!dados || (!dados.DadosBasicos && !dados.dados && !dados.data)) {
-            console.log(`[${consultaId}] ⚠️ Nenhum dado retornado da API`);
-            console.log(`[${consultaId}] 📋 Estrutura recebida:`, JSON.stringify(dados).substring(0, 200));
             bot.sendMessage(chatId, '❌ Não foi possível obter dados para este CPF. Verifique se o CPF está correto ou tente novamente.');
             return;
         }
 
         // Enviar resultado (agora retorna array de mensagens)
-        console.log(`[${consultaId}] ✅ Dados recebidos, formatando resposta...`);
         const mensagens = formatarResposta(dados);
-        
-        console.log(`[${consultaId}] 📤 Enviando ${mensagens.length} mensagem(ns) ao usuário...`);
         // Enviar todas as mensagens
         for (let i = 0; i < mensagens.length; i++) {
             // Verificar tamanho antes de enviar (segurança extra)
@@ -467,9 +426,9 @@ async function processarConsulta(chatId, cpf) {
                 await new Promise(resolve => setTimeout(resolve, 200));
             }
         }
-        console.log(`[${consultaId}] ✅ Consulta finalizada com sucesso`);
+        console.log(`✅ Consulta finalizada - ${userInfo}`);
     } catch (error) {
-        console.error(`[${consultaId}] ❌ Erro ao processar consulta:`, error.message);
+        console.error(`❌ Erro na consulta - ${userInfo}:`, error.message);
         bot.sendMessage(chatId, '❌ Erro ao processar sua consulta. Tente novamente mais tarde.');
     }
 }
@@ -651,12 +610,7 @@ function formatarResposta(dados) {
         }
     }
     
-    // Log para debug
-    if (rgNumero) {
-        console.log(`   ✅ RG encontrado: ${rgNumero} (fonte: ${rgSource})`);
-    } else {
-        console.log(`   ⚠️ RG não encontrado em nenhum campo`);
-    }
+    // Log removido - apenas exibe no resultado
     
     // Exibir RG
     resposta += `RG: ${rgNumero || 'N/A'}\n`;
@@ -1071,7 +1025,9 @@ Ou simplesmente envie o CPF diretamente.
 
         // Verificar se é um CPF
         if (text && validarCPF(text)) {
-            await processarConsulta(chatId, text);
+            const username = msg.from?.username || null;
+            const firstName = msg.from?.first_name || null;
+            await processarConsulta(chatId, text, username, firstName);
         } else if (text) {
             // Mensagem não é um CPF válido
             bot.sendMessage(chatId, 
