@@ -382,9 +382,11 @@ async function processarConsulta(chatId, cpf) {
         // Remover mensagem de processamento
         bot.deleteMessage(chatId, processingMsg.message_id);
 
-        if (!dados || !dados.data) {
+        // Validar se há dados válidos (verificar campos principais ou se tem dados dentro)
+        if (!dados || (!dados.DadosBasicos && !dados.dados && !dados.data)) {
             console.log(`[${consultaId}] ⚠️ Nenhum dado retornado da API`);
-            bot.sendMessage(chatId, '❌ Não foi possível obter dados para este CPF. Tente novamente.');
+            console.log(`[${consultaId}] 📋 Estrutura recebida:`, JSON.stringify(dados).substring(0, 200));
+            bot.sendMessage(chatId, '❌ Não foi possível obter dados para este CPF. Verifique se o CPF está correto ou tente novamente.');
             return;
         }
 
