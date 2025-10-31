@@ -145,15 +145,6 @@ async function criarStackComGit(jwtToken) {
             console.log(`   ℹ️  Repositório público (sem autenticação)`);
         }
         
-        // Verificar tipo do endpoint
-        const endpointType = await verificarTipoEndpoint(jwtToken);
-        const isSwarm = endpointType === 2;
-        
-        if (isSwarm) {
-            console.log('   ⚠️  Docker Swarm detectado - o Portainer precisa fazer build primeiro');
-            console.log('   ℹ️  O Portainer fará build automaticamente se o Dockerfile estiver no Git');
-        }
-
         const payload = {
             Name: PORTAINER_STACK_NAME,
             RepositoryURL: GIT_REPOSITORY_URL,
@@ -176,6 +167,11 @@ async function criarStackComGit(jwtToken) {
         // Verificar tipo do endpoint para usar o endpoint correto
         const endpointType = await verificarTipoEndpoint(jwtToken);
         const isSwarm = endpointType === 2;
+        
+        if (isSwarm) {
+            console.log('   ⚠️  Docker Swarm detectado - o Portainer precisa fazer build primeiro');
+            console.log('   ℹ️  O Portainer fará build automaticamente se o Dockerfile estiver no Git');
+        }
         
         // Escolher endpoint correto
         const endpointPath = isSwarm ? 'swarm' : 'standalone';
