@@ -241,10 +241,8 @@ async function criarStackComGit(jwtToken) {
         // Tentar criar a stack
         let response;
         try {
-            // Para Swarm, não passar endpointId na query string, só no body
-            const url = isSwarm
-                ? `${PORTAINER_URL}/api/stacks/create/${endpointPath}/repository`
-                : `${PORTAINER_URL}/api/stacks/create/${endpointPath}/repository?endpointId=${PORTAINER_ENDPOINT_ID}`;
+            // Sempre passar endpointId na query string
+            const url = `${PORTAINER_URL}/api/stacks/create/${endpointPath}/repository?endpointId=${PORTAINER_ENDPOINT_ID}`;
             
             console.log(`   Fazendo request para: ${url}`);
             
