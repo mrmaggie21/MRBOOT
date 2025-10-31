@@ -565,13 +565,13 @@ function formatarResposta(dados) {
     let rgOrgaoExpedidor = null;
     let rgSource = null; // Para debug: saber de onde veio o RG
     
-    // 1. Verificar registroGeral (campo principal)
+    // 1. Verificar registroGeral (campo principal) - campos corretos: rgNumero, dataEmissao, orgaoEmissor
     if (dados.registroGeral) {
-        rgNumero = dados.registroGeral.numero || dados.registroGeral.rg || null;
+        rgNumero = dados.registroGeral.rgNumero || dados.registroGeral.numero || dados.registroGeral.rg || null;
         if (rgNumero) {
             rgSource = 'registroGeral';
-            rgDataExpedicao = dados.registroGeral.dataExpedicao || dados.registroGeral.dataEmissao || null;
-            rgOrgaoExpedidor = dados.registroGeral.orgaoExpedidor || null;
+            rgDataExpedicao = dados.registroGeral.dataEmissao || dados.registroGeral.dataExpedicao || null;
+            rgOrgaoExpedidor = dados.registroGeral.orgaoEmissor || dados.registroGeral.orgaoExpedidor || null;
         }
     }
     
@@ -618,9 +618,24 @@ function formatarResposta(dados) {
             }
         }
         
-        // Verificar documentos.outros.RG (dentro de outros)
+        // Verificar documentos.outros.Identidade (dentro de outros) - campo correto!
         if (!rgNumero && documentos.outros) {
-            if (documentos.outros.RG) {
+            if (documentos.outros.Identidade) {
+                rgNumero = documentos.outros.Identidade.numeroIdentidade || null;
+                if (rgNumero) {
+                    rgSource = 'listaDocumentos.outros.Identidade';
+                    if (!rgDataExpedicao) {
+                        rgDataExpedicao = documentos.outros.Identidade.dataExpedicao || null;
+                    }
+                    // OrgaoEmissor pode ser objeto com nomeOrgaoEmissor
+                    if (documentos.outros.Identidade.OrgaoEmissor) {
+                        rgOrgaoExpedidor = documentos.outros.Identidade.OrgaoEmissor.nomeOrgaoEmissor || 
+                                          documentos.outros.Identidade.OrgaoEmissor.siglaOrgaoEmissor || null;
+                    }
+                }
+            }
+            // Verificar documentos.outros.RG também (fallback)
+            if (!rgNumero && documentos.outros.RG) {
                 if (typeof documentos.outros.RG === 'string') {
                     rgNumero = documentos.outros.RG;
                     rgSource = 'listaDocumentos.outros.RG (string)';
@@ -817,7 +832,20 @@ function formatarResposta(dados) {
                         rgOrgaoDoc = documentos.rg.orgaoExpedidor || null;
                     }
                 }
-                // Verificar dentro de outros
+                // Verificar dentro de outros.Identidade (campo correto!)
+                if (!rgNumeroDoc && documentos.outros && documentos.outros.Identidade) {
+                    rgNumeroDoc = documentos.outros.Identidade.numeroIdentidade || null;
+                    if (rgNumeroDoc) {
+                        if (!rgDataDoc) {
+                            rgDataDoc = documentos.outros.Identidade.dataExpedicao || null;
+                        }
+                        if (documentos.outros.Identidade.OrgaoEmissor) {
+                            rgOrgaoDoc = documentos.outros.Identidade.OrgaoEmissor.nomeOrgaoEmissor || 
+                                        documentos.outros.Identidade.OrgaoEmissor.siglaOrgaoEmissor || null;
+                        }
+                    }
+                }
+                // Verificar documentos.outros.RG também (fallback)
                 if (!rgNumeroDoc && documentos.outros && documentos.outros.RG) {
                     if (typeof documentos.outros.RG === 'string') {
                         rgNumeroDoc = documentos.outros.RG;
