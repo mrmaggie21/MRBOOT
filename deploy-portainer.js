@@ -473,6 +473,17 @@ async function fazerDeploy() {
                 process.exit(1);
             }
             
+            // Verificar tipo do endpoint
+            const endpointType = await verificarTipoEndpoint(token);
+            const isSwarm = endpointType === 2;
+            
+            // Se for Swarm, fazer build da imagem PRIMEIRO
+            if (isSwarm) {
+                console.log('   ⚠️  Docker Swarm detectado - fazendo build da imagem primeiro...\n');
+                await buildImageFromGit(token);
+                console.log('');
+            }
+            
             // Buscar stack existente
             const stackExistente = await buscarStack(token);
 
