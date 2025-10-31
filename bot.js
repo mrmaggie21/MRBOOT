@@ -10,6 +10,7 @@ const API_TOKEN = process.env.API_TOKEN;
 const API_BASE_URL = process.env.API_BASE_URL || 'https://completa.workbuscas.com/api';
 const WEBSHARE_API_KEY = process.env.WEBSHARE_API_KEY;
 const WEBSHARE_API_URL = process.env.WEBSHARE_API_URL || 'https://proxy.webshare.io/api/v2/proxy/list';
+const USE_PROXY = process.env.USE_PROXY === 'true' || process.env.USE_PROXY === '1' || process.env.USE_PROXY === 'yes';
 
 // Lista de proxies
 let proxies = [];
@@ -217,7 +218,8 @@ function createAxiosInstance(useProxy = true, timeoutCustom = 60000) {
         }
     };
 
-    if (useProxy && proxies.length > 0) {
+    // Só usar proxy se USE_PROXY estiver ativado E tiver proxies disponíveis
+    if (useProxy && USE_PROXY && proxies.length > 0) {
         const proxy = getNextProxy();
         if (proxy) {
             const agents = createProxyAgent(proxy);
@@ -225,6 +227,8 @@ function createAxiosInstance(useProxy = true, timeoutCustom = 60000) {
             config.httpAgent = agents.http;
             console.log(`🌐 Usando proxy: ${proxy.host}:${proxy.port}`);
         }
+    } else if (useProxy && USE_PROXY && proxies.length === 0) {
+        console.log('⚠️ Proxies solicitados mas nenhum disponível. Fazendo requisição direta.');
     }
 
     return axios.create(config);
@@ -240,8 +244,8 @@ function inicializarBot() {
         request: {}
     };
 
-    // Se tiver proxies, configurar para o bot também
-    if (proxies.length > 0) {
+    // Se USE_PROXY estiver ativado E tiver proxies, configurar para o bot também
+    if (USE_PROXY && proxies.length > 0) {
         const proxy = getNextProxy();
         if (proxy) {
             const proxyUrl = proxy.url || `http://${proxy.username}:${proxy.password}@${proxy.host}:${proxy.port}`;
@@ -268,8 +272,10 @@ function inicializarBot() {
         } else {
             console.warn('⚠️ Nenhum proxy disponível para o bot');
         }
+    } else if (!USE_PROXY) {
+        console.log('ℹ️  Proxies desativados. Bot funcionando sem proxy.');
     } else {
-        console.warn('⚠️ Nenhum proxy disponível. Bot funcionando sem proxy (pode ter problemas de conectividade)');
+        console.warn('⚠️ Nenhum proxy disponível. Bot funcionando sem proxy.');
     }
 
     try {
@@ -827,26 +833,32 @@ async function iniciar() {
         
         console.log('✅ Variáveis de ambiente validadas');
 
-        // Buscar proxies do WebShare ANTES de inicializar o bot
-        if (WEBSHARE_API_KEY) {
-            console.log('🔍 Buscando proxies do WebShare...');
-            await buscarProxiesWebShare();
-            
-            // Se não carregou proxies, tentar novamente após 5 segundos
-            if (proxies.length === 0) {
-                console.log('⚠️ Nenhum proxy encontrado. Tentando novamente em 5 segundos...');
-                await new Promise(resolve => setTimeout(resolve, 5000));
+        // Buscar proxies do WebShare ANTES de inicializar o bot (se USE_PROXY estiver ativado)
+        if (USE_PROXY) {
+            if (WEBSHARE_API_KEY) {
+                console.log('🔍 Buscando proxies do WebShare...');
                 await buscarProxiesWebShare();
-            }
-
-            if (proxies.length === 0) {
-                console.error('❌ ERRO CRÍTICO: Nenhum proxy disponível! O bot não conseguirá conectar.');
-                console.error('   Verifique se WEBSHARE_API_KEY está correto.');
-                console.error('   O servidor parece estar bloqueado do acesso direto ao Telegram.');
-                // Process.exit(1); // Descomentar se quiser forçar proxy
-            } else {
-                console.log(`✅ ${proxies.length} proxies carregados com sucesso`);
                 
+                // Se não carregou proxies, tentar novamente após 5 segundos
+                if (proxies.length === 0) {
+                    console.log('⚠️ Nenhum proxy encontrado. Tentando novamente em 5 segundos...');
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    await buscarProxiesWebShare();
+                }
+
+                if (proxies.length === 0) {
+                    console.warn('⚠️ Nenhum proxy disponível. Bot funcionando sem proxy.');
+                    console.warn('   Verifique se WEBSHARE_API_KEY está correto.');
+                } else {
+                    console.log(`✅ ${proxies.length} proxies carregados com sucesso`);
+                }
+            } else {
+                console.warn('⚠️ USE_PROXY está ativado mas WEBSHARE_API_KEY não está definido.');
+                console.warn('   Bot funcionando sem proxy.');
+            }
+        } else {
+            console.log('ℹ️  Proxies desativados (USE_PROXY=false). Bot funcionando sem proxy.');
+            
                 // Atualizar proxies a cada 30 minutos
                 setInterval(async () => {
                     console.log('🔄 Atualizando lista de proxies...');
