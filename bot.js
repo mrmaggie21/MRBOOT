@@ -333,20 +333,30 @@ async function consultarCPF(cpf, maxRetries = 5, consultaId = '') {
             // A API pode retornar dados em diferentes estruturas
             // Aceitar se tem status 200 OU se tem campos principais
             if (response.data) {
+                // Se tem status 404 (CPF não encontrado), não retornar dados
+                if (response.data.status === 404 || response.data.statusMsg === 'Not found') {
+                    console.warn(`${logPrefix}   ⚠️ CPF não encontrado (404)`);
+                    return null;
+                }
+                
                 // Se tem status 200, retornar
                 if (response.data.status === 200) {
                     console.log(`${logPrefix}   ✅ Status 200 - dados válidos`);
                     return response.data;
                 }
+                
                 // Se não tem status mas tem campos principais, também aceitar
                 if (response.data.DadosBasicos || response.data.dados || response.data.data) {
                     console.log(`${logPrefix}   ✅ Dados encontrados (sem status 200)`);
                     return response.data;
                 }
-                // Se tem algum conteúdo, retornar mesmo assim (pode ser uma estrutura diferente)
+                
+                // Se tem algum conteúdo válido, retornar mesmo assim (pode ser uma estrutura diferente)
                 const keys = Object.keys(response.data);
-                if (keys.length > 0 && keys.length < 50) { // Se tem poucos campos, provavelmente é válido
-                    console.log(`${logPrefix}   ⚠️ Retornando resposta mesmo sem validação padrão`);
+                // Ignorar respostas que só têm status, statusMsg, reason (são erros)
+                const camposValidos = keys.filter(k => !['status', 'statusMsg', 'reason', 'contate'].includes(k));
+                if (camposValidos.length > 0) {
+                    console.log(`${logPrefix}   ⚠️ Retornando resposta com campos: ${camposValidos.join(', ')}`);
                     return response.data;
                 }
             }
