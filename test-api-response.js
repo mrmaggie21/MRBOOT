@@ -2,7 +2,7 @@ require('dotenv').config();
 const axios = require('axios');
 
 const API_BASE_URL = process.env.API_BASE_URL || 'https://completa.workbuscas.com/api';
-const API_TOKEN = process.env.API_TOKEN;
+const API_TOKEN = process.env.API_TOKEN || 'kjvHiQNRxutJKrlFApVWhTcj';
 
 // CPF de teste (substitua por um CPF válido que você sabe que retorna dados)
 const CPF_TESTE = '04435790599'; // CPF do exemplo original

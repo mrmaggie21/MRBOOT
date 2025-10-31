@@ -544,9 +544,14 @@ function formatarResposta(dados) {
     resposta += `Nome: ${basicos.nome || 'N/A'}\n`;
     resposta += `CPF: ${basicos.cpf || 'N/A'}\n`;
     resposta += `CNS: ${basicos.cns || 'N/A'}\n`;
-    resposta += `RG: ${basicos.rg || basicos.identidade || basicos.numeroIdentidade || 'N/A'}\n`;
-    if (basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao) {
-        resposta += `Data Expedição RG: ${basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao || 'N/A'}\n`;
+    // RG - verificar em múltiplos campos
+    const rgNumero = basicos.rg || basicos.identidade || basicos.numeroIdentidade || 'N/A';
+    resposta += `RG: ${rgNumero}\n`;
+    
+    // Data de Expedição RG - verificar em múltiplos campos
+    const rgDataExpedicao = basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao;
+    if (rgDataExpedicao) {
+        resposta += `Data Expedição RG: ${rgDataExpedicao}\n`;
     }
     resposta += `Data de Nascimento: ${basicos.dataNascimento || 'N/A'}\n`;
     resposta += `Sexo: ${basicos.sexo || 'N/A'}\n`;
