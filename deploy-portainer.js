@@ -188,42 +188,21 @@ async function criarStackComGit(jwtToken) {
             console.log(`   ℹ️  Repositório público (sem autenticação)`);
         }
         
+        // Verificar tipo do endpoint para usar o endpoint correto
+        const endpointType = await verificarTipoEndpoint(jwtToken);
+        const isSwarm = endpointType === 2;
+        
         const payload = {
             Name: PORTAINER_STACK_NAME,
             RepositoryURL: GIT_REPOSITORY_URL,
             RepositoryReference: GIT_REFERENCE,
             ComposeFilePath: COMPOSE_FILE_PATH,
             RepositoryAuthentication: false,
-            EndpointID: parseInt(PORTAINER_ENDPOINT_ID),
-            SwarmID: '' // Será preenchido se for Swarm
+            EndpointID: parseInt(PORTAINER_ENDPOINT_ID)
         };
 
-        // Se tem credenciais Git, adicionar autenticação
-        if (GIT_USERNAME && GIT_PASSWORD) {
-            payload.RepositoryAuthentication = true;
-            payload.RepositoryUsername = GIT_USERNAME;
-            payload.RepositoryPassword = GIT_PASSWORD;
-        }
-
-        console.log('   Payload completo:', JSON.stringify(payload, null, 2));
-
-        // Verificar tipo do endpoint para usar o endpoint correto
-        const endpointType = await verificarTipoEndpoint(jwtToken);
-        const isSwarm = endpointType === 2;
-        
+        // Se for Swarm, adicionar SwarmID
         if (isSwarm) {
-            console.log('   ⚠️  Docker Swarm detectado - o Portainer precisa fazer build primeiro');
-            console.log('   ℹ️  O Portainer fará build automaticamente se o Dockerfile estiver no Git');
-        }
-        
-        // Escolher endpoint correto
-        const endpointPath = isSwarm ? 'swarm' : 'standalone';
-        console.log(`   Tipo do endpoint: ${isSwarm ? 'Docker Swarm' : 'Docker Standalone'}`);
-        console.log(`   Usando endpoint: ${endpointPath}/repository`);
-        
-        if (isSwarm) {
-            // Para Swarm, precisa buscar o SwarmID do cluster
-            console.log('   ⚠️  Docker Swarm detectado - precisando buscar SwarmID...');
             try {
                 const swarmResponse = await axios.get(
                     `${PORTAINER_URL}/api/endpoints/${PORTAINER_ENDPOINT_ID}/docker/swarm`,
@@ -236,10 +215,28 @@ async function criarStackComGit(jwtToken) {
                 payload.SwarmID = swarmResponse.data.ID || '';
                 console.log(`   ✅ SwarmID obtido: ${payload.SwarmID.substring(0, 12)}...`);
             } catch (swarmError) {
-                console.warn('   ⚠️ Não foi possível obter SwarmID, usando string vazia');
+                console.warn('   ⚠️ Não foi possível obter SwarmID');
                 payload.SwarmID = '';
             }
         }
+
+        // Se tem credenciais Git, adicionar autenticação
+        if (GIT_USERNAME && GIT_PASSWORD) {
+            payload.RepositoryAuthentication = true;
+            payload.RepositoryUsername = GIT_USERNAME;
+            payload.RepositoryPassword = GIT_PASSWORD;
+        }
+
+        console.log('   Payload completo:', JSON.stringify(payload, null, 2));
+        
+        if (isSwarm) {
+            console.log('   ⚠️  Docker Swarm detectado');
+        }
+        
+        // Escolher endpoint correto
+        const endpointPath = isSwarm ? 'swarm' : 'standalone';
+        console.log(`   Tipo do endpoint: ${isSwarm ? 'Docker Swarm' : 'Docker Standalone'}`);
+        console.log(`   Usando endpoint: ${endpointPath}/repository`);
         
         // Tentar criar a stack
         let response;
