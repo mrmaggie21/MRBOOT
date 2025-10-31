@@ -2,7 +2,18 @@ version: '3.8'
 
 services:
   telegram-bot:
-    image: telegram-cpf-bot:latest
+    image: node:18-alpine
+    working_dir: /app
+    command: >
+      sh -c "
+        apk add --no-cache git &&
+        git clone --branch main --depth 1 https://github.com/mrmaggie21/MRBOOT.git /tmp/repo &&
+        cp -r /tmp/repo/* /app/ &&
+        cp -r /tmp/repo/. /app/ 2>/dev/null || true &&
+        rm -rf /tmp/repo &&
+        npm install --only=production &&
+        node bot.js
+      "
     deploy:
       replicas: 1
       restart_policy:
