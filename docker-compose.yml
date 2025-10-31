@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: "0"
     container_name: telegram-cpf-bot
     restart: unless-stopped
     networks:

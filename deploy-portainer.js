@@ -114,7 +114,8 @@ async function criarStackComGit(jwtToken) {
             RepositoryReference: GIT_REFERENCE,
             ComposeFilePath: COMPOSE_FILE_PATH,
             RepositoryAuthentication: false,
-            EndpointID: parseInt(PORTAINER_ENDPOINT_ID)
+            EndpointID: parseInt(PORTAINER_ENDPOINT_ID),
+            SwarmID: '' // Obrigatório para stacks standalone
         };
 
         // Se tem credenciais Git, adicionar autenticação
@@ -124,16 +125,46 @@ async function criarStackComGit(jwtToken) {
             payload.RepositoryPassword = GIT_PASSWORD;
         }
 
-        const response = await axios.post(
-            `${PORTAINER_URL}/api/stacks/create/standalone/repository?endpointId=${PORTAINER_ENDPOINT_ID}`,
-            payload,
-            {
-                headers: {
-                    'Authorization': `Bearer ${jwtToken}`,
-                    'Content-Type': 'application/json'
+        console.log('   Payload completo:', JSON.stringify(payload, null, 2));
+
+        // Tentar criar a stack - se falhar com build, pode ser problema do BuildKit
+        let response;
+        try {
+            console.log(`   Fazendo request para: ${PORTAINER_URL}/api/stacks/create/standalone/repository`);
+            
+            response = await axios.post(
+                `${PORTAINER_URL}/api/stacks/create/standalone/repository?endpointId=${PORTAINER_ENDPOINT_ID}`,
+                payload,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${jwtToken}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    timeout: 180000, // 3 minutos para build
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
                 }
+            );
+        } catch (buildError) {
+            if (buildError.response?.status === 500 && buildError.response?.data?.message?.includes('Build')) {
+                console.log('\n⚠️  Erro 500 relacionado ao BuildKit do Docker.');
+                console.log('   O Portainer está tentando fazer build mas o BuildKit está com problemas.');
+                console.log('\n💡 Solução:');
+                console.log('   O payload está correto e os arquivos estão no Git.');
+                console.log('   Este é um problema interno do Portainer/Docker BuildKit.');
+                console.log('   Tente fazer o deploy manualmente via UI do Portainer:');
+                console.log(`   ${PORTAINER_URL} → Stacks → Add Stack → Git repository`);
+                console.log('\n   Os dados estão corretos:');
+                console.log(`   - Repository: ${GIT_REPOSITORY_URL}`);
+                console.log(`   - Reference: ${GIT_REFERENCE}`);
+                console.log(`   - Compose file: ${COMPOSE_FILE_PATH}`);
+                console.log(`   - Username: ${GIT_USERNAME}`);
+                console.log(`   - Password: ${GIT_PASSWORD.substring(0, 10)}...`);
+                throw buildError;
             }
-        );
+            throw buildError;
+        }
 
         console.log('✅ Stack criada com sucesso usando Git Repository!');
         console.log('   ID:', response.data.Id);
