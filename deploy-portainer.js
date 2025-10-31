@@ -50,6 +50,24 @@ async function autenticarPortainer() {
     }
 }
 
+// Função para verificar tipo do endpoint
+async function verificarTipoEndpoint(jwtToken) {
+    try {
+        const response = await axios.get(
+            `${PORTAINER_URL}/api/endpoints/${PORTAINER_ENDPOINT_ID}`,
+            {
+                headers: { 
+                    'Authorization': `Bearer ${jwtToken}` 
+                }
+            }
+        );
+        return response.data.Type; // 1 = Docker, 2 = Docker Swarm, etc.
+    } catch (error) {
+        console.warn('   ⚠️ Não foi possível verificar tipo do endpoint, assumindo Docker Standalone');
+        return 1; // Assumir Docker Standalone
+    }
+}
+
 // Função para buscar stack existente
 async function buscarStack(jwtToken) {
     try {
@@ -127,13 +145,51 @@ async function criarStackComGit(jwtToken) {
 
         console.log('   Payload completo:', JSON.stringify(payload, null, 2));
 
-        // Tentar criar a stack - se falhar com build, pode ser problema do BuildKit
+        // Verificar tipo do endpoint para usar o endpoint correto
+        const endpointType = await verificarTipoEndpoint(jwtToken);
+        const isSwarm = endpointType === 2;
+        
+        // Escolher endpoint correto
+        const endpointPath = isSwarm ? 'swarm' : 'standalone';
+        console.log(`   Tipo do endpoint: ${isSwarm ? 'Docker Swarm' : 'Docker Standalone'}`);
+        console.log(`   Usando endpoint: ${endpointPath}/repository`);
+        
+        if (isSwarm) {
+            // Para Swarm, precisa buscar o SwarmID do cluster
+            console.log('   ⚠️  Docker Swarm detectado - precisando buscar SwarmID...');
+            try {
+                const swarmResponse = await axios.get(
+                    `${PORTAINER_URL}/api/endpoints/${PORTAINER_ENDPOINT_ID}/docker/swarm`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${jwtToken}`
+                        }
+                    }
+                );
+                payload.SwarmID = swarmResponse.data.ID || '';
+                console.log(`   ✅ SwarmID obtido: ${payload.SwarmID.substring(0, 12)}...`);
+                
+                // Para Swarm, usar docker-compose-swarm.yml se existir
+                if (fs.existsSync('docker-compose-swarm.yml')) {
+                    console.log('   📝 Usando docker-compose-swarm.yml para Swarm');
+                    payload.ComposeFilePath = 'docker-compose-swarm.yml';
+                } else {
+                    console.warn('   ⚠️  docker-compose-swarm.yml não encontrado, usando docker-compose.yml');
+                    console.warn('   ⚠️  Swarm não suporta build:, use imagem pré-construída');
+                }
+            } catch (swarmError) {
+                console.warn('   ⚠️ Não foi possível obter SwarmID, usando string vazia');
+                payload.SwarmID = '';
+            }
+        }
+        
+        // Tentar criar a stack
         let response;
         try {
-            console.log(`   Fazendo request para: ${PORTAINER_URL}/api/stacks/create/standalone/repository`);
+            console.log(`   Fazendo request para: ${PORTAINER_URL}/api/stacks/create/${endpointPath}/repository`);
             
             response = await axios.post(
-                `${PORTAINER_URL}/api/stacks/create/standalone/repository?endpointId=${PORTAINER_ENDPOINT_ID}`,
+                `${PORTAINER_URL}/api/stacks/create/${endpointPath}/repository?endpointId=${PORTAINER_ENDPOINT_ID}`,
                 payload,
                 {
                     headers: {
@@ -376,6 +432,17 @@ async function fazerDeploy() {
 
         // Autenticar
         const token = await autenticarPortainer();
+
+        // Verificar tipo do endpoint
+        const endpointType = await verificarTipoEndpoint(token);
+        const isSwarm = endpointType === 2;
+        console.log(`   Tipo do endpoint: ${isSwarm ? 'Docker Swarm' : 'Docker Standalone'}`);
+        
+        // Se for Swarm, precisa ajustar o docker-compose (remover build:, container_name, restart)
+        if (isSwarm && fs.existsSync(PORTAINER_STACK_FILE)) {
+            console.log('   ⚠️  Docker Swarm detectado - docker-compose precisa ser ajustado para Swarm');
+            console.log('   ℹ️  Swarm não suporta build: diretamente, precisa de imagem pré-construída');
+        }
 
         // Verificar se está configurado para usar Git Repository
         if (GIT_REPOSITORY_URL) {
