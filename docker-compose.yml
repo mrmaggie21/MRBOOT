@@ -5,6 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GIT_REPO: https://github.com/mrmaggie21/MRBOOT.git
+        GIT_BRANCH: main
     deploy:
       replicas: 1
       restart_policy:
