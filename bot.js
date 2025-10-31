@@ -328,6 +328,21 @@ async function consultarCPF(cpf, maxRetries = 5, consultaId = '') {
             if (logPrefix) {
                 console.log(`${logPrefix}   📋 Estrutura da resposta:`, JSON.stringify(response.data).substring(0, 500));
                 console.log(`${logPrefix}   📊 Campos disponíveis:`, Object.keys(response.data || {}).join(', '));
+                
+                // Log específico para RG
+                if (response.data.registroGeral !== undefined) {
+                    console.log(`${logPrefix}   🪪 registroGeral:`, JSON.stringify(response.data.registroGeral));
+                }
+                if (response.data.DadosBasicos) {
+                    const rgFields = ['rg', 'identidade', 'numeroIdentidade'];
+                    const foundFields = rgFields.filter(f => response.data.DadosBasicos[f]);
+                    if (foundFields.length > 0) {
+                        console.log(`${logPrefix}   🪪 RG em DadosBasicos:`, foundFields.map(f => `${f}=${response.data.DadosBasicos[f]}`).join(', '));
+                    }
+                }
+                if (response.data.listaDocumentos) {
+                    console.log(`${logPrefix}   🪪 listaDocumentos:`, JSON.stringify(response.data.listaDocumentos).substring(0, 300));
+                }
             }
             
             // A API pode retornar dados em diferentes estruturas
@@ -548,19 +563,26 @@ function formatarResposta(dados) {
     let rgNumero = null;
     let rgDataExpedicao = null;
     let rgOrgaoExpedidor = null;
+    let rgSource = null; // Para debug: saber de onde veio o RG
     
     // 1. Verificar registroGeral (campo principal)
     if (dados.registroGeral) {
         rgNumero = dados.registroGeral.numero || dados.registroGeral.rg || null;
-        rgDataExpedicao = dados.registroGeral.dataExpedicao || dados.registroGeral.dataEmissao || null;
-        rgOrgaoExpedidor = dados.registroGeral.orgaoExpedidor || null;
+        if (rgNumero) {
+            rgSource = 'registroGeral';
+            rgDataExpedicao = dados.registroGeral.dataExpedicao || dados.registroGeral.dataEmissao || null;
+            rgOrgaoExpedidor = dados.registroGeral.orgaoExpedidor || null;
+        }
     }
     
     // 2. Verificar DadosBasicos
     if (!rgNumero) {
         rgNumero = basicos.rg || basicos.identidade || basicos.numeroIdentidade || null;
-        if (!rgDataExpedicao) {
-            rgDataExpedicao = basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao || null;
+        if (rgNumero) {
+            rgSource = 'DadosBasicos';
+            if (!rgDataExpedicao) {
+                rgDataExpedicao = basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao || null;
+            }
         }
     }
     
@@ -570,11 +592,14 @@ function formatarResposta(dados) {
         if (documentos.RG) {
             if (typeof documentos.RG === 'string') {
                 rgNumero = documentos.RG;
+                rgSource = 'listaDocumentos.RG (string)';
             } else if (documentos.RG.numero || documentos.RG.numeroRG || documentos.RG.rg) {
                 rgNumero = documentos.RG.numero || documentos.RG.numeroRG || documentos.RG.rg;
+                rgSource = 'listaDocumentos.RG (objeto)';
                 if (!rgDataExpedicao) {
                     rgDataExpedicao = documentos.RG.dataExpedicao || documentos.RG.dataEmissao || null;
                 }
+                rgOrgaoExpedidor = documentos.RG.orgaoExpedidor || null;
             }
         }
         
@@ -582,11 +607,14 @@ function formatarResposta(dados) {
         if (!rgNumero && documentos.rg) {
             if (typeof documentos.rg === 'string') {
                 rgNumero = documentos.rg;
+                rgSource = 'listaDocumentos.rg (string)';
             } else if (documentos.rg.numero || documentos.rg.numeroRG || documentos.rg.rg) {
                 rgNumero = documentos.rg.numero || documentos.rg.numeroRG || documentos.rg.rg;
+                rgSource = 'listaDocumentos.rg (objeto)';
                 if (!rgDataExpedicao) {
                     rgDataExpedicao = documentos.rg.dataExpedicao || documentos.rg.dataEmissao || null;
                 }
+                rgOrgaoExpedidor = documentos.rg.orgaoExpedidor || null;
             }
         }
         
@@ -595,14 +623,24 @@ function formatarResposta(dados) {
             if (documentos.outros.RG) {
                 if (typeof documentos.outros.RG === 'string') {
                     rgNumero = documentos.outros.RG;
+                    rgSource = 'listaDocumentos.outros.RG (string)';
                 } else if (documentos.outros.RG.numero || documentos.outros.RG.rg) {
                     rgNumero = documentos.outros.RG.numero || documentos.outros.RG.rg;
+                    rgSource = 'listaDocumentos.outros.RG (objeto)';
                     if (!rgDataExpedicao) {
                         rgDataExpedicao = documentos.outros.RG.dataExpedicao || documentos.outros.RG.dataEmissao || null;
                     }
+                    rgOrgaoExpedidor = documentos.outros.RG.orgaoExpedidor || null;
                 }
             }
         }
+    }
+    
+    // Log para debug
+    if (rgNumero) {
+        console.log(`   ✅ RG encontrado: ${rgNumero} (fonte: ${rgSource})`);
+    } else {
+        console.log(`   ⚠️ RG não encontrado em nenhum campo`);
     }
     
     // Exibir RG
