@@ -4,9 +4,7 @@ services:
   telegram-bot:
     image: node:18-alpine
     working_dir: /app
-    command: ["sh", "-c", "npm install --only=production && node bot.js"]
-    volumes:
-      - ./:/app
+    command: ["sh", "-c", "cp package*.json bot.js test-proxy.js /app/ 2>/dev/null || true && npm install --only=production && node bot.js"]
     deploy:
       replicas: 1
       restart_policy:
