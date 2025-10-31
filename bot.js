@@ -511,6 +511,10 @@ function formatarResposta(dados) {
     resposta += `Nome: ${basicos.nome || 'N/A'}\n`;
     resposta += `CPF: ${basicos.cpf || 'N/A'}\n`;
     resposta += `CNS: ${basicos.cns || 'N/A'}\n`;
+    resposta += `RG: ${basicos.rg || basicos.identidade || basicos.numeroIdentidade || 'N/A'}\n`;
+    if (basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao) {
+        resposta += `Data Expedição RG: ${basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao || 'N/A'}\n`;
+    }
     resposta += `Data de Nascimento: ${basicos.dataNascimento || 'N/A'}\n`;
     resposta += `Sexo: ${basicos.sexo || 'N/A'}\n`;
     resposta += `Cor/Raça: ${basicos.cor || 'N/A'}\n`;
@@ -622,8 +626,26 @@ function formatarResposta(dados) {
     }
 
     // Documentos
-    if (documentos.CNS || documentos.outros) {
+    if (documentos.CNS || documentos.outros || documentos.RG || documentos.rg || basicos.rg || basicos.identidade) {
         resposta += '🪪 *DOCUMENTOS*\n';
+        
+        // RG
+        const rg = basicos.rg || basicos.identidade || basicos.numeroIdentidade || documentos.RG || documentos.rg;
+        if (rg) {
+            resposta += '*RG:*\n';
+            if (typeof rg === 'string') {
+                resposta += `Número: ${rg}\n`;
+            } else if (rg.numero || rg.numeroRG) {
+                resposta += `Número: ${rg.numero || rg.numeroRG}\n`;
+            }
+            const dataExpedicaoRG = basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao || rg.dataExpedicao || rg.dataEmissao;
+            if (dataExpedicaoRG) {
+                resposta += `Data Expedição: ${dataExpedicaoRG}\n`;
+            }
+            resposta += '\n';
+        }
+        
+        // CNS
         if (documentos.CNS && documentos.CNS.length > 0) {
             resposta += '*CNS:*\n';
             documentos.CNS.forEach((cns, index) => {
@@ -632,9 +654,12 @@ function formatarResposta(dados) {
                 resposta += `   Data: ${cns.dataAtribuicao || 'N/A'}\n`;
             });
         }
+        
+        // NIS
         if (documentos.outros?.NIS) {
             resposta += `\n*NIS:* ${documentos.outros.NIS.numeroDocumento || 'N/A'}\n`;
         }
+        
         resposta += '\n';
     }
 
