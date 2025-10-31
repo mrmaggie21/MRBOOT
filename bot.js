@@ -1009,8 +1009,10 @@ Ou simplesmente envie o CPF diretamente.
     bot.onText(/\/consulta (.+)/, async (msg, match) => {
         const chatId = msg.chat.id;
         const cpf = match[1].trim();
+        const username = msg.from?.username || null;
+        const firstName = msg.from?.first_name || null;
         
-        await processarConsulta(chatId, cpf);
+        await processarConsulta(chatId, cpf, username, firstName);
     });
 
     // Lidar com mensagens de texto (CPF)
