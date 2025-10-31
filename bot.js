@@ -339,7 +339,7 @@ async function consultarCPF(cpf, maxRetries = 5, consultaId = '') {
                     return response.data;
                 }
                 // Se não tem status mas tem campos principais, também aceitar
-                if (response.data.DadosBasicos || response.data.dados || response.data.data || basicos?.nome) {
+                if (response.data.DadosBasicos || response.data.dados || response.data.data) {
                     console.log(`${logPrefix}   ✅ Dados encontrados (sem status 200)`);
                     return response.data;
                 }
