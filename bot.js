@@ -858,12 +858,14 @@ async function iniciar() {
             }
         } else {
             console.log('ℹ️  Proxies desativados (USE_PROXY=false). Bot funcionando sem proxy.');
-            
-                // Atualizar proxies a cada 30 minutos
-                setInterval(async () => {
-                    console.log('🔄 Atualizando lista de proxies...');
-                    await buscarProxiesWebShare();
-                    console.log(`✅ ${proxies.length} proxies disponíveis agora`);
+        }
+        
+        // Atualizar proxies a cada 30 minutos (apenas se USE_PROXY estiver ativado)
+        if (USE_PROXY) {
+            setInterval(async () => {
+                console.log('🔄 Atualizando lista de proxies...');
+                await buscarProxiesWebShare();
+                console.log(`✅ ${proxies.length} proxies disponíveis agora`);
                 }, 30 * 60 * 1000); // 30 minutos
             }
         } else {
