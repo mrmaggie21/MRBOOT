@@ -544,12 +544,25 @@ function formatarResposta(dados) {
     resposta += `Nome: ${basicos.nome || 'N/A'}\n`;
     resposta += `CPF: ${basicos.cpf || 'N/A'}\n`;
     resposta += `CNS: ${basicos.cns || 'N/A'}\n`;
-    // RG - verificar em múltiplos campos
-    const rgNumero = basicos.rg || basicos.identidade || basicos.numeroIdentidade || 'N/A';
+    // RG - verificar em múltiplos campos (incluindo registroGeral)
+    const rgNumero = dados.registroGeral?.numero || 
+                     dados.registroGeral?.rg ||
+                     basicos.rg || 
+                     basicos.identidade || 
+                     basicos.numeroIdentidade || 
+                     documentos?.RG?.numero ||
+                     documentos?.rg?.numero ||
+                     'N/A';
     resposta += `RG: ${rgNumero}\n`;
     
     // Data de Expedição RG - verificar em múltiplos campos
-    const rgDataExpedicao = basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao;
+    const rgDataExpedicao = dados.registroGeral?.dataExpedicao ||
+                            dados.registroGeral?.dataEmissao ||
+                            basicos.rgDataExpedicao || 
+                            basicos.dataExpedicao || 
+                            basicos.dataEmissao ||
+                            documentos?.RG?.dataExpedicao ||
+                            documentos?.rg?.dataExpedicao;
     if (rgDataExpedicao) {
         resposta += `Data Expedição RG: ${rgDataExpedicao}\n`;
     }
@@ -664,23 +677,37 @@ function formatarResposta(dados) {
     }
 
     // Documentos
-    if (documentos.CNS || documentos.outros || documentos.RG || documentos.rg || basicos.rg || basicos.identidade) {
+    if (documentos.CNS || documentos.outros || documentos.RG || documentos.rg || basicos.rg || basicos.identidade || dados.registroGeral) {
         resposta += '🪪 *DOCUMENTOS*\n';
         
-        // RG
-        const rg = basicos.rg || basicos.identidade || basicos.numeroIdentidade || documentos.RG || documentos.rg;
-        if (rg) {
+        // RG - verificar em registroGeral primeiro (campo principal da API)
+        const registroGeral = dados.registroGeral;
+        if (registroGeral && (registroGeral.numero || registroGeral.rg)) {
             resposta += '*RG:*\n';
-            if (typeof rg === 'string') {
-                resposta += `Número: ${rg}\n`;
-            } else if (rg.numero || rg.numeroRG) {
-                resposta += `Número: ${rg.numero || rg.numeroRG}\n`;
+            resposta += `Número: ${registroGeral.numero || registroGeral.rg || 'N/A'}\n`;
+            if (registroGeral.dataExpedicao || registroGeral.dataEmissao) {
+                resposta += `Data Expedição: ${registroGeral.dataExpedicao || registroGeral.dataEmissao}\n`;
             }
-            const dataExpedicaoRG = basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao || rg.dataExpedicao || rg.dataEmissao;
-            if (dataExpedicaoRG) {
-                resposta += `Data Expedição: ${dataExpedicaoRG}\n`;
+            if (registroGeral.orgaoExpedidor) {
+                resposta += `Órgão Expedidor: ${registroGeral.orgaoExpedidor}\n`;
             }
             resposta += '\n';
+        } else {
+            // Fallback para outros campos
+            const rg = basicos.rg || basicos.identidade || basicos.numeroIdentidade || documentos.RG || documentos.rg;
+            if (rg) {
+                resposta += '*RG:*\n';
+                if (typeof rg === 'string') {
+                    resposta += `Número: ${rg}\n`;
+                } else if (rg.numero || rg.numeroRG) {
+                    resposta += `Número: ${rg.numero || rg.numeroRG}\n`;
+                }
+                const dataExpedicaoRG = basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao || rg.dataExpedicao || rg.dataEmissao;
+                if (dataExpedicaoRG) {
+                    resposta += `Data Expedição: ${dataExpedicaoRG}\n`;
+                }
+                resposta += '\n';
+            }
         }
         
         // CNS
