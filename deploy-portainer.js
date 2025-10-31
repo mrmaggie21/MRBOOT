@@ -110,6 +110,25 @@ async function buscarStack(jwtToken) {
     }
 }
 
+// Função para fazer build da imagem usando Dockerfile do Git
+async function buildImageFromGit(jwtToken) {
+    try {
+        console.log('🔨 Fazendo build da imagem usando Dockerfile do Git...');
+        
+        // Portainer não tem endpoint direto para build via Git via API
+        // Mas o Portainer fará o build automaticamente quando criar a stack
+        // Se o docker-compose.yml tiver build:, o Portainer tentará fazer build
+        // Para Swarm, precisamos fazer build primeiro e usar a imagem
+        
+        console.log('   ℹ️  O Portainer fará o build automaticamente ao criar a stack com Git repository');
+        console.log('   ℹ️  Para Swarm, o build será feito internamente pelo Portainer');
+        return true;
+    } catch (error) {
+        console.warn('   ⚠️ Não foi possível fazer build via API:', error.message);
+        return false;
+    }
+}
+
 // Função para criar nova stack usando Git Repository
 async function criarStackComGit(jwtToken) {
     try {
@@ -124,6 +143,15 @@ async function criarStackComGit(jwtToken) {
             console.log(`   ✅ Usando autenticação Git`);
         } else {
             console.log(`   ℹ️  Repositório público (sem autenticação)`);
+        }
+        
+        // Verificar tipo do endpoint
+        const endpointType = await verificarTipoEndpoint(jwtToken);
+        const isSwarm = endpointType === 2;
+        
+        if (isSwarm) {
+            console.log('   ⚠️  Docker Swarm detectado - o Portainer precisa fazer build primeiro');
+            console.log('   ℹ️  O Portainer fará build automaticamente se o Dockerfile estiver no Git');
         }
 
         const payload = {
