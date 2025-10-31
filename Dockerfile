@@ -2,6 +2,10 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Desabilitar BuildKit explicitamente
+ENV DOCKER_BUILDKIT=0
+ENV COMPOSE_DOCKER_CLI_BUILD=0
+
 # Copiar arquivos de dependências primeiro (para cache do Docker)
 COPY package*.json ./
 
