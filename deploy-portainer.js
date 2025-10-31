@@ -198,6 +198,12 @@ async function criarStackComGit(jwtToken) {
         console.log(`   Repository: ${GIT_REPOSITORY_URL}`);
         console.log(`   Reference: ${GIT_REFERENCE}`);
         console.log(`   Compose file: ${COMPOSE_FILE_PATH}`);
+        
+        if (GIT_USERNAME && GIT_PASSWORD) {
+            console.log(`   ✅ Usando autenticação Git`);
+        } else {
+            console.log(`   ℹ️  Repositório público (sem autenticação)`);
+        }
 
         const payload = {
             Name: PORTAINER_STACK_NAME,
@@ -261,16 +267,51 @@ async function atualizarStackComGit(jwtToken, stackId) {
             payload.RepositoryPassword = GIT_PASSWORD;
         }
 
-        const response = await axios.put(
-            `${PORTAINER_URL}/api/stacks/${stackId}/repository?endpointId=${PORTAINER_ENDPOINT_ID}`,
-            payload,
-            {
-                headers: {
-                    'Authorization': `Bearer ${jwtToken}`,
-                    'Content-Type': 'application/json'
+        // Tentar endpoint correto para atualizar stack via Git
+        let response;
+        try {
+            // Tentar endpoint com query parameter
+            response = await axios.put(
+                `${PORTAINER_URL}/api/stacks/${stackId}/git?endpointId=${PORTAINER_ENDPOINT_ID}`,
+                payload,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${jwtToken}`,
+                        'Content-Type': 'application/json'
+                    }
                 }
+            );
+        } catch (gitError) {
+            // Se falhar, tentar endpoint repository
+            try {
+                response = await axios.put(
+                    `${PORTAINER_URL}/api/stacks/${stackId}?endpointId=${PORTAINER_ENDPOINT_ID}`,
+                    {
+                        ...payload,
+                        Name: PORTAINER_STACK_NAME
+                    },
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${jwtToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+            } catch (error2) {
+                // Se ambos falharem, deletar e recriar
+                console.log('   ⚠️ Atualização via Git falhou, deletando e recriando stack...');
+                await axios.delete(
+                    `${PORTAINER_URL}/api/stacks/${stackId}?endpointId=${PORTAINER_ENDPOINT_ID}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${jwtToken}`
+                        }
+                    }
+                );
+                console.log('   ✅ Stack deletada, recriando com Git Repository...');
+                return await criarStackComGit(jwtToken);
             }
-        );
+        }
 
         console.log('✅ Stack atualizada com sucesso usando Git Repository!');
         return response.data;
@@ -580,16 +621,28 @@ async function fazerDeploy() {
         // Verificar se está configurado para usar Git Repository
         if (GIT_REPOSITORY_URL) {
             console.log('📦 Usando Git Repository para deploy...\n');
+            console.log(`   Repository: ${GIT_REPOSITORY_URL}`);
+            console.log(`   Branch: ${GIT_REFERENCE}`);
+            console.log(`   Compose file: ${COMPOSE_FILE_PATH}\n`);
+            
+            // Validar configuração Git
+            if (!GIT_REPOSITORY_URL) {
+                console.error('❌ Erro: GIT_REPOSITORY_URL não configurado no .env');
+                console.error('   Adicione GIT_REPOSITORY_URL no arquivo .env');
+                process.exit(1);
+            }
             
             // Buscar stack existente
             const stackExistente = await buscarStack(token);
 
             if (stackExistente) {
                 console.log(`📋 Stack "${PORTAINER_STACK_NAME}" encontrada (ID: ${stackExistente.Id})`);
+                console.log(`   Atualizando stack usando Git Repository...\n`);
                 // Atualizar stack existente usando Git
                 await atualizarStackComGit(token, stackExistente.Id);
             } else {
                 console.log(`📋 Stack "${PORTAINER_STACK_NAME}" não encontrada`);
+                console.log(`   Criando nova stack usando Git Repository...\n`);
                 // Criar nova stack usando Git
                 await criarStackComGit(token);
             }
@@ -614,6 +667,14 @@ async function fazerDeploy() {
         console.log(`   Stack: ${PORTAINER_STACK_NAME}`);
         console.log(`   Endpoint: ${PORTAINER_ENDPOINT_ID}`);
         console.log(`   URL: ${PORTAINER_URL}`);
+        if (GIT_REPOSITORY_URL) {
+            console.log(`   Repository: ${GIT_REPOSITORY_URL}`);
+            console.log(`   Branch: ${GIT_REFERENCE}`);
+            console.log('\n📝 O Portainer irá automaticamente:');
+            console.log('   1. Clonar o repositório Git');
+            console.log('   2. Fazer build das imagens Docker');
+            console.log('   3. Iniciar os containers');
+        }
 
     } catch (error) {
         console.error('\n❌ Erro durante o deploy:', error.message);
