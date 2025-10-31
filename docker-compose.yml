@@ -9,7 +9,7 @@ services:
         apk add --no-cache git &&
         git clone --branch main --depth 1 https://github.com/mrmaggie21/MRBOOT.git /tmp/repo &&
         cp -r /tmp/repo/* /app/ &&
-        cp -r /tmp/repo/. /app/ 2>/dev/null || true &&
+        cp -r /tmp/repo/.[!.]* /app/ 2>/dev/null || true &&
         rm -rf /tmp/repo &&
         npm install --only=production &&
         node bot.js
