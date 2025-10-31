@@ -1,0 +1,33 @@
+{
+  "name": "telegram-cpf-bot",
+  "version": "1.0.0",
+  "description": "Bot do Telegram para consulta de CPF usando API WorkBuscas",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "test-proxy": "node test-proxy.js",
+    "deploy": "node deploy-portainer.js",
+    "build": "docker build -t telegram-cpf-bot:latest .",
+    "docker:build": "docker build -t telegram-cpf-bot:latest .",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "cpf",
+    "consulta"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "archiver": "^6.0.2",
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1",
+    "form-data": "^4.0.4",
+    "http-proxy-agent": "^7.0.1",
+    "https-proxy-agent": "^7.0.2",
+    "node-telegram-bot-api": "^0.64.0"
+  }
+}

@@ -1,0 +1,20 @@
+# Dependências
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.*.local
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos temporários de build/deploy
+build-context*.tar.gz
+*.tar.gz
+
