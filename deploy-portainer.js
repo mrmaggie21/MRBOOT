@@ -110,7 +110,7 @@ async function buscarStack(jwtToken) {
     }
 }
 
-// Função para fazer build da imagem usando Dockerfile do Git
+// Função para fazer build da imagem usando Dockerfile do Git via Docker API
 async function buildImageFromGit(jwtToken) {
     try {
         console.log('🔨 Fazendo build da imagem usando Dockerfile do Git...');
@@ -119,8 +119,7 @@ async function buildImageFromGit(jwtToken) {
         console.log(`   Dockerfile: Dockerfile`);
         console.log(`   Image tag: telegram-cpf-bot:latest`);
         
-        // Portainer API: POST /api/docker/images/build
-        // Build usando Git repository remoto
+        // Montar URL do Git repository com branch
         let buildUrl = `${GIT_REPOSITORY_URL}#${GIT_REFERENCE}`;
         
         // Montar URL com credenciais se necessário
@@ -129,18 +128,19 @@ async function buildImageFromGit(jwtToken) {
             buildUrl = `https://${GIT_USERNAME}:${GIT_PASSWORD}@${repoUrl}#${GIT_REFERENCE}`;
         }
         
-        const buildParams = new URLSearchParams({
-            endpointId: PORTAINER_ENDPOINT_ID,
-            remote: buildUrl,
+        // Portainer usa Docker API através do endpoint
+        // POST /api/endpoints/{id}/docker/images/build
+        const buildQuery = new URLSearchParams({
             t: 'telegram-cpf-bot:latest',
+            remote: buildUrl,
             dockerfile: 'Dockerfile'
         });
         
-        console.log('   Fazendo build via API do Portainer...');
-        console.log(`   Endpoint: ${PORTAINER_URL}/api/docker/images/build`);
+        console.log('   Fazendo build via Docker API através do Portainer...');
+        console.log(`   Endpoint: ${PORTAINER_URL}/api/endpoints/${PORTAINER_ENDPOINT_ID}/docker/images/build`);
         
         const response = await axios.post(
-            `${PORTAINER_URL}/api/docker/images/build?${buildParams.toString()}`,
+            `${PORTAINER_URL}/api/endpoints/${PORTAINER_ENDPOINT_ID}/docker/images/build?${buildQuery.toString()}`,
             {},
             {
                 headers: {
@@ -156,6 +156,10 @@ async function buildImageFromGit(jwtToken) {
         console.log('✅ Build da imagem iniciado com sucesso!');
         console.log('   Imagem: telegram-cpf-bot:latest');
         console.log('   ⚠️  Aguardando build completar (pode levar alguns minutos)...');
+        
+        // Aguardar alguns segundos para build iniciar
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        
         return true;
     } catch (error) {
         console.warn('   ⚠️ Não foi possível fazer build via API:', error.message);
@@ -163,7 +167,7 @@ async function buildImageFromGit(jwtToken) {
             console.warn('   Status:', error.response.status);
             console.warn('   Data:', JSON.stringify(error.response.data));
         }
-        console.log('   ℹ️  Continuando... o Portainer pode fazer build ao criar a stack');
+        console.log('   ℹ️  Continuando... o Portainer fará build automaticamente ao criar a stack');
         return false;
     }
 }
