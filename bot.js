@@ -866,11 +866,7 @@ async function iniciar() {
                 console.log('🔄 Atualizando lista de proxies...');
                 await buscarProxiesWebShare();
                 console.log(`✅ ${proxies.length} proxies disponíveis agora`);
-                }, 30 * 60 * 1000); // 30 minutos
-            }
-        } else {
-            console.error('⚠️ AVISO: WEBSHARE_API_KEY não definido!');
-            console.error('   O bot tentará funcionar sem proxy (pode falhar por timeout).');
+            }, 30 * 60 * 1000); // 30 minutos
         }
 
         // Inicializar bot APÓS carregar proxies
