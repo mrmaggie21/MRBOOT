@@ -1,9 +1,6 @@
 require('dotenv').config();
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path');
-const FormData = require('form-data');
-const archiver = require('archiver');
 
 const PORTAINER_URL = process.env.PORTAINER_URL;
 const PORTAINER_USERNAME = process.env.PORTAINER_USERNAME;
@@ -20,100 +17,6 @@ const GIT_PASSWORD = process.env.GIT_PASSWORD; // opcional - token ou senha
 const COMPOSE_FILE_PATH = process.env.COMPOSE_FILE_PATH || 'docker-compose.yml';
 
 let jwtToken = null;
-
-// Função para criar tarball com arquivos necessários para build
-function criarTarball() {
-    return new Promise((resolve, reject) => {
-        console.log('📦 Criando tarball com arquivos para build...');
-        
-        const output = fs.createWriteStream('build-context.tar.gz');
-        const archive = archiver('tar', {
-            gzip: true,
-            gzipOptions: { level: 1 }
-        });
-
-        output.on('close', () => {
-            const size = archive.pointer();
-            console.log(`✅ Tarball criado: ${size} bytes`);
-            resolve('build-context.tar.gz');
-        });
-
-        archive.on('error', (err) => {
-            reject(err);
-        });
-
-        archive.pipe(output);
-
-        // Adicionar arquivos necessários para build
-        const arquivosParaBuild = [
-            'Dockerfile',
-            'package.json',
-            'package-lock.json',
-            'bot.js',
-            '.dockerignore'
-        ];
-
-        arquivosParaBuild.forEach(arquivo => {
-            if (fs.existsSync(arquivo)) {
-                archive.file(arquivo, { name: arquivo });
-                console.log(`   ✓ Adicionado: ${arquivo}`);
-            } else {
-                console.warn(`   ⚠️ Arquivo não encontrado: ${arquivo}`);
-            }
-        });
-
-        archive.finalize();
-    });
-}
-
-// Função para criar tarball completo incluindo docker-compose.yml
-function criarTarballCompleto(stackContent) {
-    return new Promise((resolve, reject) => {
-        console.log('📦 Criando tarball completo com docker-compose.yml...');
-        
-        const output = fs.createWriteStream('build-context-completo.tar.gz');
-        const archive = archiver('tar', {
-            gzip: true,
-            gzipOptions: { level: 1 }
-        });
-
-        output.on('close', () => {
-            const size = archive.pointer();
-            console.log(`✅ Tarball completo criado: ${size} bytes`);
-            resolve('build-context-completo.tar.gz');
-        });
-
-        archive.on('error', (err) => {
-            reject(err);
-        });
-
-        archive.pipe(output);
-
-        // Adicionar docker-compose.yml como string
-        archive.append(stackContent, { name: 'docker-compose.yml' });
-        console.log(`   ✓ Adicionado: docker-compose.yml`);
-
-        // Adicionar arquivos necessários para build
-        const arquivosParaBuild = [
-            'Dockerfile',
-            'package.json',
-            'package-lock.json',
-            'bot.js',
-            '.dockerignore'
-        ];
-
-        arquivosParaBuild.forEach(arquivo => {
-            if (fs.existsSync(arquivo)) {
-                archive.file(arquivo, { name: arquivo });
-                console.log(`   ✓ Adicionado: ${arquivo}`);
-            } else {
-                console.warn(`   ⚠️ Arquivo não encontrado: ${arquivo}`);
-            }
-        });
-
-        archive.finalize();
-    });
-}
 
 // Função para autenticar no Portainer
 async function autenticarPortainer() {
@@ -325,125 +228,37 @@ async function atualizarStackComGit(jwtToken, stackId) {
     }
 }
 
-// Função para criar nova stack com upload de arquivos
+// Função para criar nova stack (método string - sem Git Repository)
 async function criarStack(jwtToken, stackContent) {
     try {
-        console.log('📦 Criando nova stack com upload de arquivos...');
+        console.log('📦 Criando nova stack (método string)...');
         console.log(`   Nome: ${PORTAINER_STACK_NAME}`);
         console.log(`   Endpoint ID: ${PORTAINER_ENDPOINT_ID}`);
         console.log(`   Tamanho do docker-compose: ${stackContent.length} bytes`);
 
-        // Criar tarball completo com docker-compose.yml e arquivos de build
-        const tarballCompleto = await criarTarballCompleto(stackContent);
-        const tarballCompletoBuffer = fs.readFileSync(tarballCompleto);
+        const payload = {
+            Name: PORTAINER_STACK_NAME,
+            StackFileContent: stackContent,
+            EndpointID: parseInt(PORTAINER_ENDPOINT_ID),
+            SwarmID: ''
+        };
+
+        const response = await axios.post(
+            `${PORTAINER_URL}/api/stacks/create/standalone/string?endpointId=${PORTAINER_ENDPOINT_ID}`,
+            payload,
+            {
+                headers: {
+                    'Authorization': `Bearer ${jwtToken}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
         
-        // Criar FormData - o endpoint file espera apenas o tarball
-        const formDataCompleto = new FormData();
-        formDataCompleto.append('file', tarballCompletoBuffer, {
-            filename: 'build-context.tar.gz',
-            contentType: 'application/gzip'
-        });
-
-        console.log(`   Uploading tarball completo (${tarballCompletoBuffer.length} bytes)...`);
-
-        try {
-            // Tentar criar stack com upload de arquivos via endpoint file
-            // O endpoint file espera apenas o tarball com todos os arquivos
-            const response = await axios.post(
-                `${PORTAINER_URL}/api/stacks/create/standalone/file?endpointId=${PORTAINER_ENDPOINT_ID}&Name=${encodeURIComponent(PORTAINER_STACK_NAME)}`,
-                formDataCompleto,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${jwtToken}`,
-                        ...formDataCompleto.getHeaders()
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity,
-                    timeout: 120000 // 2 minutos para upload
-                }
-            );
-
-            console.log('✅ Stack criada com sucesso (com arquivos)!');
-            console.log('   ID:', response.data.Id);
-            
-            // Limpar tarball temporário
-            fs.unlinkSync(tarballCompleto);
-            
-            return response.data;
-        } catch (fileError) {
-            console.log('   ❌ Método com arquivo falhou');
-            if (fileError.response) {
-                console.log(`   Status: ${fileError.response.status}`);
-                if (fileError.response.data?.message) {
-                    console.log(`   Erro: ${fileError.response.data.message}`);
-                }
-            }
-            
-            // Se tem build configurado, não criar stack sem arquivos
-            if (stackContent.includes('build:') || stackContent.includes('build:')) {
-                console.log('\n⚠️ ATENÇÃO: Não é possível criar a stack automaticamente!');
-                console.log('   O docker-compose.yml está configurado para fazer build,');
-                console.log('   mas os arquivos não puderam ser enviados via API.');
-                console.log('\n📋 Soluções:');
-                console.log('   1. Faça upload manual via UI do Portainer:');
-                console.log(`      - Acesse: ${PORTAINER_URL}`);
-                console.log(`      - Vá em Stacks → Add Stack`);
-                console.log(`      - Use Upload para enviar o arquivo: build-context-completo.tar.gz`);
-                console.log('   2. Ou use Git Repository no Portainer');
-                console.log('   3. Ou faça build local e use imagem pré-construída');
-                console.log(`\n📦 Tarball criado: ${tarballCompleto} (${tarballCompletoBuffer.length} bytes)`);
-                console.log('   Este arquivo pode ser enviado manualmente via UI do Portainer.');
-                
-                // Não limpar o tarball para o usuário poder usá-lo
-                throw new Error('Upload de arquivos falhou. Faça upload manual via UI do Portainer.');
-            }
-            
-            // Se não tem build, pode criar normalmente
-            console.log('   Tentando método string (JSON)...');
-            const payload = {
-                Name: PORTAINER_STACK_NAME,
-                StackFileContent: stackContent,
-                EndpointID: parseInt(PORTAINER_ENDPOINT_ID),
-                SwarmID: ''
-            };
-
-            try {
-                const response = await axios.post(
-                    `${PORTAINER_URL}/api/stacks/create/standalone/string?endpointId=${PORTAINER_ENDPOINT_ID}`,
-                    payload,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${jwtToken}`,
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                );
-                
-                console.log('✅ Stack criada (método string - sem arquivos)!');
-                console.log('   ⚠️ Arquivos não foram enviados - faça upload manualmente via UI');
-                console.log('   ID:', response.data.Id);
-                
-                // Limpar tarball temporário
-                if (fs.existsSync(tarballCompleto)) {
-                    fs.unlinkSync(tarballCompleto);
-                }
-                
-                return response.data;
-            } catch (stringError) {
-                console.error('\n❌ Também falhou ao criar via método string');
-                if (stringError.response) {
-                    console.error(`   Status: ${stringError.response.status}`);
-                    if (stringError.response.data?.message) {
-                        console.error(`   Erro: ${stringError.response.data.message}`);
-                    }
-                }
-                
-                console.log(`\n📦 Tarball criado: ${tarballCompleto} (${tarballCompletoBuffer.length} bytes)`);
-                console.log('   Faça upload manual via UI do Portainer.');
-                
-                throw stringError;
-            }
-        }
+        console.log('✅ Stack criada com sucesso!');
+        console.log('   ID:', response.data.Id);
+        console.log('   ⚠️  Nota: Para fazer build, configure Git Repository no .env');
+        
+        return response.data;
     } catch (error) {
         console.error('❌ Erro ao criar stack:', error.message);
         if (error.response) {
@@ -454,118 +269,31 @@ async function criarStack(jwtToken, stackContent) {
     }
 }
 
-// Função para atualizar stack existente com upload de arquivos
+// Função para atualizar stack existente (método string - sem Git Repository)
 async function atualizarStack(jwtToken, stackId, stackContent) {
     try {
-        console.log('🔄 Atualizando stack existente com upload de arquivos...');
+        console.log('🔄 Atualizando stack existente (método string)...');
         console.log(`   Stack ID: ${stackId}`);
 
-        // Criar tarball completo com docker-compose.yml e arquivos de build
-        const tarballCompleto = await criarTarballCompleto(stackContent);
-        const tarballCompletoBuffer = fs.readFileSync(tarballCompleto);
+        const payload = {
+            StackFileContent: stackContent
+        };
+
+        const response = await axios.put(
+            `${PORTAINER_URL}/api/stacks/${stackId}?endpointId=${PORTAINER_ENDPOINT_ID}`,
+            payload,
+            {
+                headers: {
+                    'Authorization': `Bearer ${jwtToken}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        console.log('✅ Stack atualizada com sucesso!');
+        console.log('   ⚠️  Nota: Para fazer build, configure Git Repository no .env');
         
-        // Criar FormData - o endpoint file espera apenas o tarball
-        const formDataCompleto = new FormData();
-        formDataCompleto.append('file', tarballCompletoBuffer, {
-            filename: 'build-context.tar.gz',
-            contentType: 'application/gzip'
-        });
-
-        console.log(`   Uploading tarball completo (${tarballCompletoBuffer.length} bytes)...`);
-
-        try {
-            // Tentar atualizar com arquivos via endpoint file
-            const response = await axios.put(
-                `${PORTAINER_URL}/api/stacks/${stackId}/file?endpointId=${PORTAINER_ENDPOINT_ID}`,
-                formDataCompleto,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${jwtToken}`,
-                        ...formDataCompleto.getHeaders()
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity,
-                    timeout: 120000 // 2 minutos para upload
-                }
-            );
-
-            console.log('✅ Stack atualizada com sucesso (com arquivos)!');
-            
-            // Limpar tarball temporário
-            fs.unlinkSync(tarballCompleto);
-            
-            return response.data;
-        } catch (fileError) {
-            console.log('   ❌ Método com arquivo falhou');
-            if (fileError.response) {
-                console.log(`   Status: ${fileError.response.status}`);
-                if (fileError.response.data?.message) {
-                    console.log(`   Erro: ${fileError.response.data.message}`);
-                }
-            }
-            
-            // Não tentar atualizar sem arquivos se o docker-compose tem build
-            // porque vai falhar quando tentar fazer build
-            if (stackContent.includes('build:') || stackContent.includes('build:')) {
-                console.log('\n⚠️ ATENÇÃO: Não é possível atualizar a stack automaticamente!');
-                console.log('   O docker-compose.yml está configurado para fazer build,');
-                console.log('   mas os arquivos não puderam ser enviados via API.');
-                console.log('\n📋 Soluções:');
-                console.log('   1. Faça upload manual via UI do Portainer:');
-                console.log(`      - Acesse: ${PORTAINER_URL}`);
-                console.log(`      - Vá em Stacks → ${PORTAINER_STACK_NAME} → Editor`);
-                console.log(`      - Use Upload para enviar o arquivo: build-context-completo.tar.gz`);
-                console.log('   2. Ou use Git Repository no Portainer');
-                console.log('   3. Ou faça build local e use imagem pré-construída');
-                console.log(`\n📦 Tarball criado: ${tarballCompleto} (${tarballCompletoBuffer.length} bytes)`);
-                console.log('   Este arquivo pode ser enviado manualmente via UI do Portainer.');
-                
-                // Não limpar o tarball para o usuário poder usá-lo
-                throw new Error('Upload de arquivos falhou. Faça upload manual via UI do Portainer.');
-            }
-            
-            // Se não tem build, pode atualizar normalmente
-            console.log('   Tentando método string (JSON)...');
-            const payload = {
-                StackFileContent: stackContent
-            };
-
-            try {
-                const response = await axios.put(
-                    `${PORTAINER_URL}/api/stacks/${stackId}?endpointId=${PORTAINER_ENDPOINT_ID}`,
-                    payload,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${jwtToken}`,
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                );
-
-                console.log('✅ Stack atualizada (método string - sem arquivos)!');
-                console.log('   ⚠️ Arquivos não foram enviados - faça upload manualmente via UI');
-                
-                // Limpar tarball temporário
-                if (fs.existsSync(tarballCompleto)) {
-                    fs.unlinkSync(tarballCompleto);
-                }
-                
-                return response.data;
-            } catch (stringError) {
-                console.error('\n❌ Também falhou ao atualizar via método string');
-                if (stringError.response) {
-                    console.error(`   Status: ${stringError.response.status}`);
-                    if (stringError.response.data?.message) {
-                        console.error(`   Erro: ${stringError.response.data.message}`);
-                    }
-                }
-                
-                console.log(`\n📦 Tarball criado: ${tarballCompleto} (${tarballCompletoBuffer.length} bytes)`);
-                console.log('   Faça upload manual via UI do Portainer.');
-                
-                throw stringError;
-            }
-        }
+        return response.data;
     } catch (error) {
         console.error('❌ Erro ao atualizar stack:', error.message);
         if (error.response) {
