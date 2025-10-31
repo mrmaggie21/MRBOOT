@@ -544,27 +544,78 @@ function formatarResposta(dados) {
     resposta += `Nome: ${basicos.nome || 'N/A'}\n`;
     resposta += `CPF: ${basicos.cpf || 'N/A'}\n`;
     resposta += `CNS: ${basicos.cns || 'N/A'}\n`;
-    // RG - verificar em múltiplos campos (incluindo registroGeral)
-    const rgNumero = dados.registroGeral?.numero || 
-                     dados.registroGeral?.rg ||
-                     basicos.rg || 
-                     basicos.identidade || 
-                     basicos.numeroIdentidade || 
-                     documentos?.RG?.numero ||
-                     documentos?.rg?.numero ||
-                     'N/A';
-    resposta += `RG: ${rgNumero}\n`;
+    // RG - verificar em TODOS os lugares possíveis (busca completa)
+    let rgNumero = null;
+    let rgDataExpedicao = null;
+    let rgOrgaoExpedidor = null;
     
-    // Data de Expedição RG - verificar em múltiplos campos
-    const rgDataExpedicao = dados.registroGeral?.dataExpedicao ||
-                            dados.registroGeral?.dataEmissao ||
-                            basicos.rgDataExpedicao || 
-                            basicos.dataExpedicao || 
-                            basicos.dataEmissao ||
-                            documentos?.RG?.dataExpedicao ||
-                            documentos?.rg?.dataExpedicao;
+    // 1. Verificar registroGeral (campo principal)
+    if (dados.registroGeral) {
+        rgNumero = dados.registroGeral.numero || dados.registroGeral.rg || null;
+        rgDataExpedicao = dados.registroGeral.dataExpedicao || dados.registroGeral.dataEmissao || null;
+        rgOrgaoExpedidor = dados.registroGeral.orgaoExpedidor || null;
+    }
+    
+    // 2. Verificar DadosBasicos
+    if (!rgNumero) {
+        rgNumero = basicos.rg || basicos.identidade || basicos.numeroIdentidade || null;
+        if (!rgDataExpedicao) {
+            rgDataExpedicao = basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao || null;
+        }
+    }
+    
+    // 3. Verificar listaDocumentos (estrutura completa)
+    if (!rgNumero && documentos) {
+        // Verificar documentos.RG (pode ser objeto ou string)
+        if (documentos.RG) {
+            if (typeof documentos.RG === 'string') {
+                rgNumero = documentos.RG;
+            } else if (documentos.RG.numero || documentos.RG.numeroRG || documentos.RG.rg) {
+                rgNumero = documentos.RG.numero || documentos.RG.numeroRG || documentos.RG.rg;
+                if (!rgDataExpedicao) {
+                    rgDataExpedicao = documentos.RG.dataExpedicao || documentos.RG.dataEmissao || null;
+                }
+            }
+        }
+        
+        // Verificar documentos.rg (minúsculo)
+        if (!rgNumero && documentos.rg) {
+            if (typeof documentos.rg === 'string') {
+                rgNumero = documentos.rg;
+            } else if (documentos.rg.numero || documentos.rg.numeroRG || documentos.rg.rg) {
+                rgNumero = documentos.rg.numero || documentos.rg.numeroRG || documentos.rg.rg;
+                if (!rgDataExpedicao) {
+                    rgDataExpedicao = documentos.rg.dataExpedicao || documentos.rg.dataEmissao || null;
+                }
+            }
+        }
+        
+        // Verificar documentos.outros.RG (dentro de outros)
+        if (!rgNumero && documentos.outros) {
+            if (documentos.outros.RG) {
+                if (typeof documentos.outros.RG === 'string') {
+                    rgNumero = documentos.outros.RG;
+                } else if (documentos.outros.RG.numero || documentos.outros.RG.rg) {
+                    rgNumero = documentos.outros.RG.numero || documentos.outros.RG.rg;
+                    if (!rgDataExpedicao) {
+                        rgDataExpedicao = documentos.outros.RG.dataExpedicao || documentos.outros.RG.dataEmissao || null;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Exibir RG
+    resposta += `RG: ${rgNumero || 'N/A'}\n`;
+    
+    // Exibir Data de Expedição se encontrada
     if (rgDataExpedicao) {
         resposta += `Data Expedição RG: ${rgDataExpedicao}\n`;
+    }
+    
+    // Exibir Órgão Expedidor se encontrado
+    if (rgOrgaoExpedidor) {
+        resposta += `Órgão Expedidor: ${rgOrgaoExpedidor}\n`;
     }
     resposta += `Data de Nascimento: ${basicos.dataNascimento || 'N/A'}\n`;
     resposta += `Sexo: ${basicos.sexo || 'N/A'}\n`;
@@ -693,18 +744,63 @@ function formatarResposta(dados) {
             }
             resposta += '\n';
         } else {
-            // Fallback para outros campos
-            const rg = basicos.rg || basicos.identidade || basicos.numeroIdentidade || documentos.RG || documentos.rg;
-            if (rg) {
-                resposta += '*RG:*\n';
-                if (typeof rg === 'string') {
-                    resposta += `Número: ${rg}\n`;
-                } else if (rg.numero || rg.numeroRG) {
-                    resposta += `Número: ${rg.numero || rg.numeroRG}\n`;
+            // Busca completa em todos os lugares possíveis
+            let rgNumeroDoc = null;
+            let rgDataDoc = null;
+            let rgOrgaoDoc = null;
+            
+            // Verificar DadosBasicos
+            rgNumeroDoc = basicos.rg || basicos.identidade || basicos.numeroIdentidade || null;
+            if (!rgDataDoc) {
+                rgDataDoc = basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao || null;
+            }
+            
+            // Verificar listaDocumentos
+            if (!rgNumeroDoc && documentos) {
+                if (documentos.RG) {
+                    if (typeof documentos.RG === 'string') {
+                        rgNumeroDoc = documentos.RG;
+                    } else {
+                        rgNumeroDoc = documentos.RG.numero || documentos.RG.numeroRG || documentos.RG.rg || null;
+                        if (!rgDataDoc) {
+                            rgDataDoc = documentos.RG.dataExpedicao || documentos.RG.dataEmissao || null;
+                        }
+                        rgOrgaoDoc = documentos.RG.orgaoExpedidor || null;
+                    }
                 }
-                const dataExpedicaoRG = basicos.rgDataExpedicao || basicos.dataExpedicao || basicos.dataEmissao || rg.dataExpedicao || rg.dataEmissao;
-                if (dataExpedicaoRG) {
-                    resposta += `Data Expedição: ${dataExpedicaoRG}\n`;
+                if (!rgNumeroDoc && documentos.rg) {
+                    if (typeof documentos.rg === 'string') {
+                        rgNumeroDoc = documentos.rg;
+                    } else {
+                        rgNumeroDoc = documentos.rg.numero || documentos.rg.numeroRG || documentos.rg.rg || null;
+                        if (!rgDataDoc) {
+                            rgDataDoc = documentos.rg.dataExpedicao || documentos.rg.dataEmissao || null;
+                        }
+                        rgOrgaoDoc = documentos.rg.orgaoExpedidor || null;
+                    }
+                }
+                // Verificar dentro de outros
+                if (!rgNumeroDoc && documentos.outros && documentos.outros.RG) {
+                    if (typeof documentos.outros.RG === 'string') {
+                        rgNumeroDoc = documentos.outros.RG;
+                    } else {
+                        rgNumeroDoc = documentos.outros.RG.numero || documentos.outros.RG.rg || null;
+                        if (!rgDataDoc) {
+                            rgDataDoc = documentos.outros.RG.dataExpedicao || documentos.outros.RG.dataEmissao || null;
+                        }
+                        rgOrgaoDoc = documentos.outros.RG.orgaoExpedidor || null;
+                    }
+                }
+            }
+            
+            if (rgNumeroDoc) {
+                resposta += '*RG:*\n';
+                resposta += `Número: ${rgNumeroDoc}\n`;
+                if (rgDataDoc) {
+                    resposta += `Data Expedição: ${rgDataDoc}\n`;
+                }
+                if (rgOrgaoDoc) {
+                    resposta += `Órgão Expedidor: ${rgOrgaoDoc}\n`;
                 }
                 resposta += '\n';
             }

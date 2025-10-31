@@ -5,7 +5,7 @@ const API_BASE_URL = process.env.API_BASE_URL || 'https://completa.workbuscas.co
 const API_TOKEN = process.env.API_TOKEN || 'kjvHiQNRxutJKrlFApVWhTcj';
 
 // CPF de teste (substitua por um CPF válido que você sabe que retorna dados)
-const CPF_TESTE = '04435790599'; // CPF do exemplo original
+const CPF_TESTE = '05585016482'; // CPF que retorna RG
 
 async function testarAPI() {
     if (!API_TOKEN) {
@@ -46,6 +46,22 @@ async function testarAPI() {
             console.log(`  - dataEmissao: ${basicos.dataEmissao || 'NÃO ENCONTRADO'}`);
         }
 
+        // Verificar registroGeral (campo principal da API para RG)
+        if (response.data.registroGeral !== undefined) {
+            console.log('');
+            console.log('🪪 Campo registroGeral encontrado:');
+            console.log(JSON.stringify(response.data.registroGeral, null, 2));
+            if (response.data.registroGeral) {
+                console.log(`  - numero: ${response.data.registroGeral.numero || 'NÃO ENCONTRADO'}`);
+                console.log(`  - rg: ${response.data.registroGeral.rg || 'NÃO ENCONTRADO'}`);
+                console.log(`  - dataExpedicao: ${response.data.registroGeral.dataExpedicao || 'NÃO ENCONTRADO'}`);
+                console.log(`  - dataEmissao: ${response.data.registroGeral.dataEmissao || 'NÃO ENCONTRADO'}`);
+                console.log(`  - orgaoExpedidor: ${response.data.registroGeral.orgaoExpedidor || 'NÃO ENCONTRADO'}`);
+            } else {
+                console.log('  ⚠️ registroGeral está null');
+            }
+        }
+
         if (response.data.listaDocumentos) {
             console.log('');
             console.log('📄 Documentos encontrados:');
@@ -57,24 +73,58 @@ async function testarAPI() {
             }
         }
 
-        // Procurar RG em todos os níveis
+        // Busca recursiva profunda por RG
         console.log('');
-        console.log('🔍 Busca recursiva por campos contendo "rg" ou "RG":');
+        console.log('🔍 Busca recursiva profunda por campos contendo "rg", "RG", "identidade", "registro":');
+        const camposRG = [];
         function buscarRG(obj, path = '') {
             for (const key in obj) {
                 if (obj.hasOwnProperty(key)) {
                     const currentPath = path ? `${path}.${key}` : key;
                     const value = obj[key];
+                    const keyLower = key.toLowerCase();
                     
-                    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                        buscarRG(value, currentPath);
-                    } else if (key.toLowerCase().includes('rg') || key.toLowerCase().includes('identidade')) {
-                        console.log(`  ✅ ${currentPath}: ${value}`);
+                    // Verificar se a chave contém alguma palavra relacionada a RG
+                    if (keyLower.includes('rg') || 
+                        keyLower.includes('identidade') || 
+                        keyLower.includes('registro') ||
+                        keyLower.includes('documento')) {
+                        camposRG.push({
+                            path: currentPath,
+                            value: value,
+                            type: typeof value
+                        });
+                    }
+                    
+                    // Continuar busca recursiva
+                    if (typeof value === 'object' && value !== null) {
+                        if (Array.isArray(value)) {
+                            value.forEach((item, index) => {
+                                if (typeof item === 'object' && item !== null) {
+                                    buscarRG(item, `${currentPath}[${index}]`);
+                                }
+                            });
+                        } else {
+                            buscarRG(value, currentPath);
+                        }
                     }
                 }
             }
         }
         buscarRG(response.data);
+        
+        console.log('');
+        console.log(`📋 Total de ${camposRG.length} campos encontrados relacionados a RG/identidade:`);
+        camposRG.forEach(campo => {
+            console.log(`  ✅ ${campo.path}: ${JSON.stringify(campo.value)} (${campo.type})`);
+        });
+        
+        // Verificar listaDocumentos em detalhe
+        if (response.data.listaDocumentos) {
+            console.log('');
+            console.log('📄 Análise detalhada de listaDocumentos:');
+            console.log(JSON.stringify(response.data.listaDocumentos, null, 2));
+        }
 
     } catch (error) {
         console.error('❌ Erro ao testar API:', error.message);
