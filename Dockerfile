@@ -9,22 +9,16 @@ RUN apk add --no-cache git
 ENV DOCKER_BUILDKIT=0
 ENV COMPOSE_DOCKER_CLI_BUILD=0
 
-# Clonar repositório Git
+# Clonar repositório Git durante o build
 ARG GIT_REPO=https://github.com/mrmaggie21/MRBOOT.git
 ARG GIT_BRANCH=main
 RUN git clone --branch ${GIT_BRANCH} --depth 1 ${GIT_REPO} /tmp/repo && \
-    cp -r /tmp/repo/* /app/ && \
+    cp -r /tmp/repo/* /app/ 2>/dev/null || true && \
+    cp -r /tmp/repo/. /app/ 2>/dev/null || true && \
     rm -rf /tmp/repo
-
-# Copiar arquivos de dependências primeiro (para cache do Docker)
-COPY package*.json ./
 
 # Instalar dependências
 RUN npm ci --only=production
-
-# Copiar código da aplicação (já foi copiado via git clone, mas garantindo)
-COPY bot.js ./
-COPY test-proxy.js ./
 
 # Criar diretório de logs
 RUN mkdir -p /app/logs && chmod 777 /app/logs
